@@ -2,7 +2,7 @@ import mariadb
 from config import DatabaseConfig
 
 def create_database_schema():
-    """Create the database schema"""
+    # Create the database schema
     
     # Connect without specifying database first
     try:

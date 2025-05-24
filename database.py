@@ -4,24 +4,24 @@ from config import DatabaseConfig
 from models import Student, Organization, Member, Membership, Term, Payment
 
 class DatabaseManager:
-    """Handle all database operations"""
+    # Handle all database operations
     
     def __init__(self):
         self.connection = None
     
     def connect(self) -> bool:
-        """Establish database connection"""
+        # Establish database connection
         self.connection = DatabaseConfig.get_connection()
         return self.connection is not None
     
     def disconnect(self):
-        """Close database connection"""
+        # Close database connection
         if self.connection:
             self.connection.close()
             self.connection = None
     
     def execute_query(self, query: str, params: tuple = ()) -> Optional[List]:
-        """Execute a SELECT query and return results"""
+        # Execute a SELECT query and return results
         if not self.connection:
             return None
         
@@ -36,7 +36,7 @@ class DatabaseManager:
             return None
     
     def execute_update(self, query: str, params: tuple = ()) -> bool:
-        """Execute INSERT, UPDATE, or DELETE query"""
+        # Execute INSERT, UPDATE, or DELETE query
         if not self.connection:
             return False
         
@@ -53,7 +53,7 @@ class DatabaseManager:
     
     # STUDENT OPERATIONS
     def add_student(self, student: Student) -> bool:
-        """Add a new student"""
+        # Add a new student
         query = """
         INSERT INTO student (first_name, last_name, gender, degree_program, standing)
         VALUES (?, ?, ?, ?, ?)
@@ -64,7 +64,7 @@ class DatabaseManager:
         ))
     
     def get_all_students(self) -> List[Student]:
-        """Get all students"""
+        # Get all students
         query = "SELECT student_id, first_name, last_name, gender, degree_program, standing FROM student"
         results = self.execute_query(query)
         
@@ -73,7 +73,7 @@ class DatabaseManager:
         return []
     
     def update_student(self, student: Student) -> bool:
-        """Update student information"""
+        # Update student information
         query = """
         UPDATE student 
         SET first_name=?, last_name=?, gender=?, degree_program=?, standing=?
@@ -85,18 +85,18 @@ class DatabaseManager:
         ))
     
     def delete_student(self, student_id: int) -> bool:
-        """Delete a student"""
+        # Delete a student
         query = "DELETE FROM student WHERE student_id=?"
         return self.execute_update(query, (student_id,))
     
     # ORGANIZATION OPERATIONS
     def add_organization(self, org_name: str) -> bool:
-        """Add a new organization"""
+        # Add a new organization
         query = "INSERT INTO organization (org_name) VALUES (?)"
         return self.execute_update(query, (org_name,))
     
     def get_all_organizations(self) -> List[Organization]:
-        """Get all organizations"""
+        # Get all organizations
         query = "SELECT org_id, org_name FROM organization"
         results = self.execute_query(query)
         
@@ -106,12 +106,12 @@ class DatabaseManager:
     
     # MEMBERSHIP OPERATIONS
     def add_member(self, student_id: int) -> bool:
-        """Add student to member table"""
+        # Add student to member table
         query = "INSERT INTO member (student_id) VALUES (?)"
         return self.execute_update(query, (student_id,))
     
     def add_membership(self, membership: Membership) -> bool:
-        """Add a new membership record"""
+        # Add a new membership record
         query = """
         INSERT INTO membership (batch, mem_status, committee, org_id, student_id)
         VALUES (?, ?, ?, ?, ?)
@@ -122,12 +122,12 @@ class DatabaseManager:
         ))
     
     def update_membership_status(self, membership_id: int, status: str) -> bool:
-        """Update membership status"""
+        # Update membership status
         query = "UPDATE membership SET mem_status=? WHERE membership_id=?"
         return self.execute_update(query, (status, membership_id))
     
     def get_members_by_organization(self, org_id: int = None) -> List[dict]:
-        """Get all members with their membership status and organization"""
+        # Get all members with their membership status and organization
         if org_id:
             query = """
             SELECT s.student_id, s.first_name, s.last_name, 
@@ -165,7 +165,7 @@ class DatabaseManager:
     
     # TERM AND PAYMENT OPERATIONS
     def add_term(self, term: Term) -> bool:
-        """Add a new term"""
+        # Add a new term
         query = """
         INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -176,7 +176,7 @@ class DatabaseManager:
         ))
     
     def add_payment(self, payment: Payment) -> bool:
-        """Add a new payment"""
+        # Add a new payment
         query = """
         INSERT INTO payment (payment_status, amount, payment_date, term_id)
         VALUES (?, ?, ?, ?)
@@ -186,7 +186,7 @@ class DatabaseManager:
         ))
     
     def get_term_balances(self) -> List[dict]:
-        """Get term payments and computed balance"""
+        # Get term payments and computed balance
         query = """
         SELECT t.term_id, t.semester, t.acad_year, t.fee_amount,
                SUM(IFNULL(p.amount, 0)) AS total_paid,
@@ -208,7 +208,7 @@ class DatabaseManager:
         return []
     
     def get_financial_summary_by_org(self) -> List[dict]:
-        """Get financial summary per organization"""
+        # Get financial summary per organization
         query = """
         SELECT org.org_name,
                SUM(t.fee_amount) AS total_fees,

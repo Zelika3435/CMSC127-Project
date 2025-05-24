@@ -6,7 +6,7 @@ from gui_components import DataTable, FormDialog
 from datetime import date, datetime
 
 class StudentMembershipApp:
-    """Main application class"""
+    # Main application class
     
     def __init__(self, root):
         self.root = root
@@ -26,7 +26,7 @@ class StudentMembershipApp:
         self.refresh_students()
     
     def create_menu(self):
-        """Create application menu"""
+        # Create application menu
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
         
@@ -49,7 +49,7 @@ class StudentMembershipApp:
         reports_menu.add_command(label="Term Balances", command=self.show_term_balances)
     
     def create_main_interface(self):
-        """Create the main interface"""
+        # Create the main interface
         # Create notebook for tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -70,7 +70,7 @@ class StudentMembershipApp:
         self.create_organizations_tab()
     
     def create_students_tab(self):
-        """Create students management tab"""
+        # Create students management tab
         # Buttons frame
         buttons_frame = ttk.Frame(self.students_frame)
         buttons_frame.pack(pady=10)
@@ -86,7 +86,7 @@ class StudentMembershipApp:
         self.students_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
     def create_members_tab(self):
-        """Create members management tab"""
+        # Create members management tab
         # Filter frame
         filter_frame = ttk.Frame(self.members_frame)
         filter_frame.pack(pady=10)
@@ -112,7 +112,7 @@ class StudentMembershipApp:
         self.members_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
     def create_organizations_tab(self):
-        """Create organizations management tab"""
+        # Create organizations management tab
         # Buttons frame
         buttons_frame = ttk.Frame(self.organizations_frame)
         buttons_frame.pack(pady=10)
@@ -127,7 +127,7 @@ class StudentMembershipApp:
     
     # STUDENT OPERATIONS
     def add_student(self):
-        """Add new student"""
+        # Add new student
         fields = [
             {'name': 'first_name', 'label': 'First Name:', 'type': 'entry'},
             {'name': 'last_name', 'label': 'Last Name:', 'type': 'entry'},
@@ -156,7 +156,7 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Failed to add student!")
     
     def edit_student(self):
-        """Edit selected student"""
+        # Edit selected student
         selected = self.students_table.get_selected_item()
         if not selected:
             messagebox.showwarning("Warning", "Please select a student to edit!")
@@ -190,7 +190,7 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Failed to update student!")
     
     def delete_student(self):
-        """Delete selected student"""
+        # Delete selected student
         selected = self.students_table.get_selected_item()
         if not selected:
             messagebox.showwarning("Warning", "Please select a student to delete!")
@@ -204,7 +204,7 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Failed to delete student!")
     
     def refresh_students(self):
-        """Refresh students table"""
+        # Refresh students table
         students = self.db.get_all_students()
         student_data = [
             {
@@ -218,7 +218,7 @@ class StudentMembershipApp:
     
     # ORGANIZATION OPERATIONS
     def add_organization(self):
-        """Add new organization"""
+        # Add new organization
         fields = [
             {'name': 'org_name', 'label': 'Organization Name:', 'type': 'entry'}
         ]
@@ -235,7 +235,7 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Failed to add organization!")
     
     def refresh_organizations(self):
-        """Refresh organizations table"""
+        # Refresh organizations table
         organizations = self.db.get_all_organizations()
         org_data = [
             {'org_id': o.org_id, 'org_name': o.org_name}
@@ -244,14 +244,14 @@ class StudentMembershipApp:
         self.organizations_table.insert_data(org_data)
     
     def refresh_org_filter(self):
-        """Refresh organization filter combobox"""
+        # Refresh organization filter combobox
         organizations = self.db.get_all_organizations()
         org_names = [org.org_name for org in organizations]
         self.org_filter['values'] = org_names
     
     # MEMBERSHIP OPERATIONS
     def add_membership(self):
-        """Add new membership"""
+        # Add new membership
         # Get available students and organizations
         students = self.db.get_all_students()
         organizations = self.db.get_all_organizations()
@@ -301,7 +301,7 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Invalid selection!")
     
     def update_membership_status(self):
-        """Update membership status"""
+        # Update membership status
         selected = self.members_table.get_selected_item()
         if not selected:
             messagebox.showwarning("Warning", "Please select a membership to update!")
@@ -324,13 +324,13 @@ class StudentMembershipApp:
                 messagebox.showerror("Error", "Failed to update membership status!")
     
     def refresh_members(self):
-        """Refresh members table"""
+        # Refresh members table
         members = self.db.get_members_by_organization()
         self.members_table.insert_data(members)
         self.refresh_org_filter()
     
     def filter_members(self, event=None):
-        """Filter members by organization"""
+        # Filter members by organization
         selected_org = self.org_filter.get()
         if selected_org:
             # Get org_id from the organization name
@@ -346,13 +346,13 @@ class StudentMembershipApp:
                 self.members_table.insert_data(members)
     
     def show_all_members(self):
-        """Show all members"""
+        # Show all members
         self.org_filter.set('')
         self.refresh_members()
     
     # REPORTS
     def show_financial_summary(self):
-        """Show financial summary report"""
+        # Show financial summary report
         summary_window = tk.Toplevel(self.root)
         summary_window.title("Financial Summary by Organization")
         summary_window.geometry("800x600")
@@ -366,7 +366,7 @@ class StudentMembershipApp:
         summary_table.insert_data(financial_data)
     
     def show_term_balances(self):
-        """Show term balances report"""
+        # Show term balances report
         balance_window = tk.Toplevel(self.root)
         balance_window.title("Term Balances")
         balance_window.geometry("800x600")
@@ -380,6 +380,6 @@ class StudentMembershipApp:
         balance_table.insert_data(balance_data)
     
     def __del__(self):
-        """Cleanup when app is destroyed"""
+        # Cleanup when app is destroyed
         if hasattr(self, 'db'):
             self.db.disconnect()

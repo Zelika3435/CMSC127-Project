@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from typing import List, Callable
 
 class DataTable(ttk.Frame):
-    """Reusable data table component"""
+    # --- Reusable data table component ---
     
     def __init__(self, parent, columns: List[str], **kwargs):
         super().__init__(parent, **kwargs)
@@ -35,19 +35,19 @@ class DataTable(ttk.Frame):
             self.tree.column(col, width=100)
     
     def clear(self):
-        """Clear all items from the table"""
+        # --- Clear all items from the table ---
         for item in self.tree.get_children():
             self.tree.delete(item)
     
     def insert_data(self, data: List[dict]):
-        """Insert data into the table"""
+        # --- Insert data into the table ---
         self.clear()
         for row_data in data:
             values = [str(row_data.get(col, '')) for col in self.tree['columns']]
             self.tree.insert('', tk.END, values=values)
     
     def get_selected_item(self) -> dict:
-        """Get the currently selected item as a dictionary"""
+        # --- Get the currently selected item as a dictionary ---
         selection = self.tree.selection()
         if selection:
             item = self.tree.item(selection[0])
@@ -57,7 +57,7 @@ class DataTable(ttk.Frame):
         return {}
 
 class FormDialog(tk.Toplevel):
-    """Base class for form dialogs"""
+    # --- Base class for form dialogs ---
     
     def __init__(self, parent, title: str, fields: List[dict]):
         super().__init__(parent)
@@ -82,7 +82,7 @@ class FormDialog(tk.Toplevel):
             first_entry.focus_set()
     
     def create_form(self):
-        """Create form fields"""
+        # --- Create form fields ---
         form_frame = ttk.Frame(self)
         form_frame.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
         
@@ -107,7 +107,7 @@ class FormDialog(tk.Toplevel):
             self.entries[field['name']] = entry
     
     def create_buttons(self):
-        """Create OK and Cancel buttons"""
+        # --- Create OK and Cancel buttons ---
         button_frame = ttk.Frame(self)
         button_frame.pack(pady=10)
         
@@ -115,7 +115,7 @@ class FormDialog(tk.Toplevel):
         ttk.Button(button_frame, text="Cancel", command=self.cancel_clicked).pack(side=tk.LEFT, padx=5)
     
     def ok_clicked(self):
-        """Handle OK button click"""
+        # --- Handle OK button click ---
         self.result = {}
         for name, entry in self.entries.items():
             if isinstance(entry, tk.Text):
@@ -125,6 +125,6 @@ class FormDialog(tk.Toplevel):
         self.destroy()
     
     def cancel_clicked(self):
-        """Handle Cancel button click"""
+        # --- Handle Cancel button click ---
         self.result = None
         self.destroy()

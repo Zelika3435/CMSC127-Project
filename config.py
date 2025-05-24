@@ -2,7 +2,7 @@ import mariadb
 from typing import Optional
 
 class DatabaseConfig:
-    """Database configuration and connection management"""
+    # Database configuration and connection management
     
     # Database connection parameters
     DB_HOST = "localhost"
@@ -13,7 +13,7 @@ class DatabaseConfig:
     
     @classmethod
     def get_connection(cls) -> Optional[mariadb.Connection]:
-        """Create and return a database connection"""
+        # Create and return a database connection
         try:
             connection = mariadb.connect(
                 user=cls.DB_USER,
