@@ -131,7 +131,8 @@ class DatabaseManager:
         if org_id:
             query = """
             SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id
+                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
+                   s.gender, s.degree_program
             FROM student s
             JOIN member mb ON s.student_id = mb.student_id
             JOIN membership m ON mb.student_id = m.student_id
@@ -143,7 +144,8 @@ class DatabaseManager:
         else:
             query = """
             SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id
+                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
+                   s.gender, s.degree_program
             FROM student s
             JOIN member mb ON s.student_id = mb.student_id
             JOIN membership m ON mb.student_id = m.student_id
@@ -157,7 +159,239 @@ class DatabaseManager:
                 {
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
                     'status': row[3], 'batch': row[4], 'committee': row[5],
-                    'organization': row[6], 'membership_id': row[7]
+                    'organization': row[6], 'membership_id': row[7],
+                    'gender': row[8], 'degree_program': row[9]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_members_with_unpaid_fees(self, org_id: int, semester: str, acad_year: str) -> List[dict]:
+        # Get members with unpaid fees for a specific organization, semester, and academic year
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name, 
+               t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
+               (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        LEFT JOIN payment p ON t.term_id = p.term_id
+        WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        GROUP BY s.student_id, t.term_id
+        HAVING balance > 0
+        """
+        results = self.execute_query(query, (org_id, semester, acad_year))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_member_unpaid_fees(self, student_id: int) -> List[dict]:
+        # Get all unpaid fees for a specific member across all organizations
+        query = """
+        SELECT org.org_name, t.semester, t.acad_year,
+               t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
+               (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        LEFT JOIN payment p ON t.term_id = p.term_id
+        WHERE s.student_id = ?
+        GROUP BY org.org_id, t.term_id
+        HAVING balance > 0
+        """
+        results = self.execute_query(query, (student_id,))
+        
+        if results:
+            return [
+                {
+                    'organization': row[0], 'semester': row[1], 'acad_year': row[2],
+                    'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_executive_committee(self, org_id: int, acad_year: str) -> List[dict]:
+        # Get all executive committee members for a specific organization and academic year
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name, m.committee
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        WHERE org.org_id = ? AND m.batch = ? AND m.committee IN ('President', 'Vice President', 'Secretary', 'Treasurer')
+        """
+        results = self.execute_query(query, (org_id, acad_year))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'role': row[3]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_role_history(self, org_id: int, role: str) -> List[dict]:
+        # Get history of members who held a specific role in an organization
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name, m.batch
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        WHERE org.org_id = ? AND m.committee = ?
+        ORDER BY m.batch DESC
+        """
+        results = self.execute_query(query, (org_id, role))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'academic_year': row[3]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_late_payments(self, org_id: int, semester: str, acad_year: str) -> List[dict]:
+        # Get all late payments for a specific organization, semester, and academic year
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name,
+               p.payment_date, t.fee_due, p.amount
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        JOIN payment p ON t.term_id = p.term_id
+        WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        AND p.payment_date > t.fee_due
+        """
+        results = self.execute_query(query, (org_id, semester, acad_year))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'payment_date': row[3], 'due_date': row[4], 'amount': row[5]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_membership_status_percentage(self, org_id: int, n_semesters: int) -> dict:
+        # Get percentage of active vs inactive members for the last n semesters
+        query = """
+        SELECT 
+            COUNT(CASE WHEN m.mem_status = 'active' THEN 1 END) as active_count,
+            COUNT(CASE WHEN m.mem_status = 'inactive' THEN 1 END) as inactive_count,
+            COUNT(*) as total_count
+        FROM membership m
+        JOIN organization org ON m.org_id = org.org_id
+        WHERE org.org_id = ?
+        AND m.batch >= (
+            SELECT MAX(batch) - ?
+            FROM membership
+            WHERE org_id = ?
+        )
+        """
+        results = self.execute_query(query, (org_id, n_semesters, org_id))
+        
+        if results and results[0]:
+            active_count, inactive_count, total_count = results[0]
+            if total_count > 0:
+                return {
+                    'active_percentage': (active_count / total_count) * 100,
+                    'inactive_percentage': (inactive_count / total_count) * 100,
+                    'total_members': total_count
+                }
+        return {'active_percentage': 0, 'inactive_percentage': 0, 'total_members': 0}
+    
+    def get_alumni_members(self, org_id: int, as_of_date: str) -> List[dict]:
+        # Get all alumni members as of a specific date
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name, m.batch
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        WHERE org.org_id = ? AND m.mem_status = 'alumni'
+        AND m.batch <= ?
+        """
+        results = self.execute_query(query, (org_id, as_of_date))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'batch': row[3]
+                }
+                for row in results
+            ]
+        return []
+    
+    def get_organization_financial_status(self, org_id: int, as_of_date: str) -> dict:
+        # Get total paid and unpaid fees for an organization as of a specific date
+        query = """
+        SELECT 
+            SUM(t.fee_amount) as total_fees,
+            SUM(IFNULL(p.amount, 0)) as total_paid,
+            SUM(t.fee_amount - IFNULL(p.amount, 0)) as total_unpaid
+        FROM organization org
+        JOIN membership m ON org.org_id = m.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        LEFT JOIN payment p ON t.term_id = p.term_id
+        WHERE org.org_id = ? AND t.term_start <= ?
+        """
+        results = self.execute_query(query, (org_id, as_of_date))
+        
+        if results and results[0]:
+            total_fees, total_paid, total_unpaid = results[0]
+            return {
+                'total_fees': total_fees or 0,
+                'total_paid': total_paid or 0,
+                'total_unpaid': total_unpaid or 0
+            }
+        return {'total_fees': 0, 'total_paid': 0, 'total_unpaid': 0}
+    
+    def get_highest_debt_members(self, org_id: int, semester: str, acad_year: str) -> List[dict]:
+        # Get members with the highest debt for a specific organization, semester, and academic year
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name,
+               t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
+               (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance
+        FROM student s
+        JOIN member mb ON s.student_id = mb.student_id
+        JOIN membership m ON mb.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        LEFT JOIN payment p ON t.term_id = p.term_id
+        WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        GROUP BY s.student_id, t.term_id
+        HAVING balance > 0
+        ORDER BY balance DESC
+        """
+        results = self.execute_query(query, (org_id, semester, acad_year))
+        
+        if results:
+            return [
+                {
+                    'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
+                    'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5]
                 }
                 for row in results
             ]

@@ -7,7 +7,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from main import StudentMembershipApp
+    from main_window import MainWindow
     from setup_database import create_database_schema
 except ImportError as e:
     print(f"Import error: {e}")
@@ -43,8 +43,8 @@ def main():
     
     # Create and run the application
     try:
-        app = StudentMembershipApp(root)
-        root.mainloop()
+        app = MainWindow()
+        app.mainloop()
     except Exception as e:
         messagebox.showerror("Application Error", f"An error occurred: {e}")
         print(f"Application error: {e}")
