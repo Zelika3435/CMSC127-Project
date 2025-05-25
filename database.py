@@ -511,12 +511,21 @@ class DatabaseManager:
     def add_payment(self, payment: Payment) -> bool:
         # Add a new payment
         query = """
-        INSERT INTO payment (payment_status, amount, payment_date, term_id)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO payment (amount, payment_date, term_id)
+        VALUES (?, ?, ?)
         """
-        return self.execute_update(query, (
-            payment.payment_status, payment.amount, payment.payment_date, payment.term_id
-        ))
+        if not self.execute_update(query, (
+            payment.amount, payment.payment_date, payment.term_id
+        )):
+            return False
+            
+        # Update payment status in term table
+        update_query = """
+        UPDATE term 
+        SET payment_status = 'paid'
+        WHERE term_id = ?
+        """
+        return self.execute_update(update_query, (payment.term_id,))
     
     def get_term_balances(self) -> List[dict]:
         # Get term payments and computed balance

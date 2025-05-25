@@ -33,12 +33,16 @@ class DataTable(ttk.Frame):
         for col in columns:
             self.tree.heading(col, text=col.replace('_', ' ').title())
             self.tree.column(col, width=100)
+        
+        # Store the complete data for each row
+        self.row_data = {}
     
     def clear(self):
         # --- Clear all items from the table ---
         print("Clearing table items")  # Debug print
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.row_data.clear()
         self.update_idletasks()
     
     def insert_data(self, data: List[dict]):
@@ -56,7 +60,9 @@ class DataTable(ttk.Frame):
                 value = str(row_data.get(col, ''))
                 values.append(value)
             print(f"Inserting row with values: {values}")  # Debug print
-            self.tree.insert('', tk.END, values=values)
+            item_id = self.tree.insert('', tk.END, values=values)
+            # Store the complete data dictionary for this row
+            self.row_data[item_id] = row_data
         
         self.update_idletasks()
         print("Data insertion complete")  # Debug print
@@ -65,10 +71,9 @@ class DataTable(ttk.Frame):
         # --- Get the currently selected item as a dictionary ---
         selection = self.tree.selection()
         if selection:
-            item = self.tree.item(selection[0])
-            values = item['values']
-            columns = self.tree['columns']
-            return dict(zip(columns, values))
+            item_id = selection[0]
+            # Return the complete data dictionary for the selected row
+            return self.row_data.get(item_id, {})
         return {}
 
 class FormDialog(tk.Toplevel):

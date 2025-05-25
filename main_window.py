@@ -1006,6 +1006,55 @@ class MainWindow(tk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load member details: {str(e)}")
     
+    def show_receipt(self, payment: Payment, member_info: dict, term_info: dict):
+        """Display a simple receipt for the payment"""
+        try:
+            # Create a new window for the receipt
+            receipt_window = tk.Toplevel(self)
+            receipt_window.title("Payment Receipt")
+            receipt_window.geometry("400x500")
+            
+            # Create a frame for the receipt content
+            receipt_frame = ttk.Frame(receipt_window, padding="20")
+            receipt_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # Organization header
+            org_name = self.fin_org_combo.get()
+            ttk.Label(receipt_frame, text=org_name, font=('Helvetica', 14, 'bold')).pack(pady=(0, 10))
+            ttk.Label(receipt_frame, text="PAYMENT RECEIPT", font=('Helvetica', 12, 'bold')).pack(pady=(0, 20))
+            
+            # Receipt details
+            details_frame = ttk.Frame(receipt_frame)
+            details_frame.pack(fill=tk.X, pady=10)
+            
+            # Member details
+            ttk.Label(details_frame, text="Member Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Name: {member_info['Name']}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Student ID: {member_info['Student ID']}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Status: {member_info['Status']}").pack(anchor=tk.W)
+            
+            # Term details
+            ttk.Label(details_frame, text="\nTerm Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Semester: {term_info['semester']}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Academic Year: {term_info['acad_year']}").pack(anchor=tk.W)
+            
+            # Payment details
+            ttk.Label(details_frame, text="\nPayment Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Date: {payment.payment_date.strftime('%Y-%m-%d')}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Fee Amount: ₱{term_info['fee_amount']:.2f}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Amount Paid: ₱{payment.amount:.2f}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Balance: ₱{float(term_info['fee_amount']) - payment.amount:.2f}").pack(anchor=tk.W)
+            
+            # Add a separator
+            ttk.Separator(receipt_frame, orient='horizontal').pack(fill=tk.X, pady=20)
+            
+            # Add footer
+            ttk.Label(receipt_frame, text="Thank you for your payment!", font=('Helvetica', 10, 'italic')).pack()
+            ttk.Label(receipt_frame, text="This receipt serves as proof of payment.").pack()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to show receipt: {str(e)}")
+
     def record_payment(self):
         selected = self.fee_table.get_selected_item()
         if not selected:
@@ -1035,30 +1084,66 @@ class MainWindow(tk.Frame):
         
         if dialog.result:
             try:
-                amount = float(dialog.result['amount'])
+                from decimal import Decimal
+                amount = Decimal(str(dialog.result['amount']))
                 if amount <= 0:
                     messagebox.showerror("Error", "Payment amount must be greater than 0")
                     return
-                if amount > balance:
+                if amount > Decimal(str(balance)):
                     messagebox.showerror("Error", "Payment amount cannot exceed the current balance")
                     return
                 
                 # Debug print to check term_id
                 print(f"Term ID from selected item: {selected.get('term_id')}")
+                term_id = selected['term_id']
                 
-                # Create payment
+                # Create payment record
                 payment = Payment(
                     payment_id=None,
-                    amount=amount,
+                    amount=float(amount),  # Convert back to float for storage
                     payment_date=datetime.strptime(dialog.result['payment_date'], '%Y-%m-%d').date(),
-                    term_id=selected['term_id']  # Access term_id directly from selected item
+                    term_id=term_id
                 )
                 
                 # Add payment
                 if not self.db.add_payment(payment):
                     raise Exception("Failed to record payment")
                 
-                messagebox.showinfo("Success", "Payment recorded successfully")
+                # Update payment status in term table
+                # First check if this payment completes the balance
+                query = """
+                SELECT t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
+                       t.semester, t.acad_year, t.fee_due
+                FROM term t
+                LEFT JOIN payment p ON t.term_id = p.term_id
+                WHERE t.term_id = ?
+                GROUP BY t.term_id
+                """
+                result = self.db.execute_query(query, (term_id,))
+                
+                if result:
+                    fee_amount = Decimal(str(result[0][0]))
+                    total_paid = Decimal(str(result[0][1]))
+                    new_total_paid = total_paid + amount
+                    
+                    # Update payment status based on whether the balance is fully paid
+                    payment_status = "paid" if new_total_paid >= fee_amount else "partial"
+                    update_query = "UPDATE term SET payment_status = ? WHERE term_id = ?"
+                    if not self.db.execute_update(update_query, (payment_status, term_id)):
+                        raise Exception("Failed to update payment status")
+                    
+                    # Show success message first
+                    messagebox.showinfo("Success", "Payment recorded successfully")
+                    
+                    # Then show receipt
+                    term_info = {
+                        'semester': result[0][2],
+                        'acad_year': result[0][3],
+                        'fee_amount': float(fee_amount)
+                    }
+                    self.show_receipt(payment, selected, term_info)
+                
+                # Refresh the financial data
                 self.load_financial_data()
                 
             except ValueError as e:
