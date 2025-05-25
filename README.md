@@ -12,7 +12,14 @@
 3. DATABASE SETUP:
    - Create a MariaDB database named `student_membership_db`
    - Update database credentials in `config.py`
-   - Run `mysql -uroot -p {your password} < test.sql` to populate test data
+   - Run the SQL file using one of these methods:
+     ```
+     # Method 1: Using mysql command line
+     mysql -uroot -p < test.sql
+
+     # Method 2: Using MariaDB client
+     mariadb -uroot -p < test.sql
+     ```
 
 4. RUN THE APPLICATION:
    ```

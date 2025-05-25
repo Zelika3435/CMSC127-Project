@@ -203,7 +203,7 @@ INSERT INTO membership (batch, mem_status, committee, org_id, student_id) VALUES
 
 -- PHOTOGRAPHY CLUB (org_id = 5)
 ('2023-2024', 'active', 'President', 5, 14),     -- Jennifer Harris
-('2023-2024', 'active', 'Member', 5, 18),        -- Barbara Martinez;
+('2023-2024', 'active', 'Member', 5, 18);        -- Barbara Martinez
 
 -- ============================================================================
 -- SECTION 5: CREATE TERMS WITH PROPER FEE LOGIC
@@ -215,59 +215,91 @@ INSERT INTO membership (batch, mem_status, committee, org_id, student_id) VALUES
 -- 3. EXPELLED members pay NOTHING (no terms created)
 -- 4. ALUMNI members pay NOTHING (no terms created)
 
--- Create terms for 1st Semester 2023-2024
--- Only create terms for ACTIVE and INACTIVE members
+-- Create terms for 1st Semester 2023-2024 - ACTIVE MEMBERS
 INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
 SELECT 
     '1st',
     '2023-08-15',
     '2023-12-15',
     '2023-2024',
-    CASE 
-        WHEN m.mem_status = 'active' THEN 1000.00
-        WHEN m.mem_status = 'inactive' THEN 500.00
-        -- No terms for expelled or alumni
-    END as fee_amount,
+    1000.00,
     '2023-09-15',
     m.membership_id
 FROM membership m
 WHERE m.batch = '2023-2024' 
-AND m.mem_status IN ('active', 'inactive');  -- Only these statuses get terms
+AND m.mem_status = 'active';
 
--- Create terms for 2nd Semester 2023-2024
+-- Create terms for 1st Semester 2023-2024 - INACTIVE MEMBERS
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+SELECT 
+    '1st',
+    '2023-08-15',
+    '2023-12-15',
+    '2023-2024',
+    500.00,
+    '2023-09-15',
+    m.membership_id
+FROM membership m
+WHERE m.batch = '2023-2024' 
+AND m.mem_status = 'inactive';
+
+-- Create terms for 2nd Semester 2023-2024 - ACTIVE MEMBERS
 INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
 SELECT 
     '2nd',
     '2024-01-15',
     '2024-05-15',
     '2023-2024',
-    CASE 
-        WHEN m.mem_status = 'active' THEN 1000.00
-        WHEN m.mem_status = 'inactive' THEN 500.00
-    END as fee_amount,
+    1000.00,
     '2024-02-15',
     m.membership_id
 FROM membership m
 WHERE m.batch = '2023-2024' 
-AND m.mem_status IN ('active', 'inactive');
+AND m.mem_status = 'active';
 
--- Create terms for Summer 2024 (if applicable)
+-- Create terms for 2nd Semester 2023-2024 - INACTIVE MEMBERS
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+SELECT 
+    '2nd',
+    '2024-01-15',
+    '2024-05-15',
+    '2023-2024',
+    500.00,
+    '2024-02-15',
+    m.membership_id
+FROM membership m
+WHERE m.batch = '2023-2024' 
+AND m.mem_status = 'inactive';
+
+-- Create terms for Summer 2024 - ACTIVE MEMBERS (major orgs only)
 INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
 SELECT 
     'Summer',
     '2024-06-01',
     '2024-07-31',
     '2023-2024',
-    CASE 
-        WHEN m.mem_status = 'active' THEN 1000.00
-        WHEN m.mem_status = 'inactive' THEN 500.00
-    END as fee_amount,
+    1000.00,
     '2024-06-15',
     m.membership_id
 FROM membership m
 WHERE m.batch = '2023-2024' 
-AND m.mem_status IN ('active', 'inactive')
-AND m.org_id IN (1, 2, 3);  -- Only major orgs have summer terms
+AND m.mem_status = 'active'
+AND m.org_id IN (1, 2, 3);
+
+-- Create terms for Summer 2024 - INACTIVE MEMBERS (major orgs only)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+SELECT 
+    'Summer',
+    '2024-06-01',
+    '2024-07-31',
+    '2023-2024',
+    500.00,
+    '2024-06-15',
+    m.membership_id
+FROM membership m
+WHERE m.batch = '2023-2024' 
+AND m.mem_status = 'inactive'
+AND m.org_id IN (1, 2, 3);
 
 -- ============================================================================
 -- SECTION 6: INSERT REALISTIC PAYMENT SCENARIOS
@@ -287,24 +319,33 @@ AND t.semester = '1st'
 AND m.student_id IN (1, 2, 9, 10, 15, 16);  -- Some active members paid full
 
 -- SCENARIO 2: Active members with partial payments
-INSERT INTO payment (payment_status, amount, payment_date, term_id) VALUES
 -- Mike Johnson (student_id=3) - partial payment
-((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
-  WHERE m.student_id = 3 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
-  'partial', 600.00, '2023-09-14'),
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 'partial', 600.00, '2023-09-14', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.student_id = 3 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
--- Sarah Williams (student_id=4) - multiple partial payments
-((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
-  WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
-  'partial', 400.00, '2023-09-20'),
-((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
-  WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
-  'partial', 300.00, '2023-10-05'),
+-- Sarah Williams (student_id=4) - first partial payment
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 'partial', 400.00, '2023-09-20', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+
+-- Sarah Williams (student_id=4) - second partial payment
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 'partial', 300.00, '2023-10-05', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- David Brown (student_id=5) - late full payment
-((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
-  WHERE m.student_id = 5 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
-  'completed', 1000.00, '2023-09-25');
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 'completed', 1000.00, '2023-09-25', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.student_id = 5 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- SCENARIO 3: Inactive members who paid their reduced fee (500.00)
 INSERT INTO payment (payment_status, amount, payment_date, term_id)
@@ -320,11 +361,12 @@ AND t.semester = '1st'
 AND m.student_id IN (7, 28, 29);  -- Inactive members paid their reduced fee
 
 -- SCENARIO 4: One inactive member with partial payment
-INSERT INTO payment (payment_status, amount, payment_date, term_id) VALUES
--- Betty Hernandez (inactive) - partial payment of reduced fee
-((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
-  WHERE m.student_id = 8 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
-  'partial', 300.00, '2023-09-18');
+-- Lisa Moore (inactive) - partial payment of reduced fee
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 'partial', 300.00, '2023-09-18', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.student_id = 8 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- SCENARIO 5: Second semester payments
 -- Some active members paid for 2nd semester
@@ -341,17 +383,12 @@ AND t.semester = '2nd'
 AND m.student_id IN (1, 9, 15);  -- Presidents paid for 2nd semester
 
 -- Some inactive members paid reduced fee for 2nd semester
+-- James Wilson paid 2nd semester inactive fee
 INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 
-    'completed',
-    500.00,
-    '2024-02-10',
-    t.term_id
-FROM term t
-JOIN membership m ON t.membership_id = m.membership_id
-WHERE m.mem_status = 'inactive' 
-AND t.semester = '2nd' 
-AND m.student_id = 7;  -- James Wilson paid 2nd semester inactive fee
+SELECT 'completed', 500.00, '2024-02-10', t.term_id 
+FROM term t 
+JOIN membership m ON t.membership_id = m.membership_id 
+WHERE m.mem_status = 'inactive' AND t.semester = '2nd' AND m.student_id = 7 LIMIT 1;
 
 -- ============================================================================
 -- SECTION 7: COMPREHENSIVE TESTING QUERIES
