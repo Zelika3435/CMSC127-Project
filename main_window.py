@@ -204,6 +204,8 @@ class MainWindow(tk.Frame):
                 self.status_bar.config(text="No organizations found")
                 return
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            for org in orgs:
+                self.organizations_table.insert_row([org.org_id, org.org_name])
             
             # Get members for the selected semester with all relevant attributes
             query = """
