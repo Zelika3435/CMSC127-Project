@@ -37,7 +37,7 @@ class Term:
     semester: str
     term_start: date
     term_end: date
-    acad_year: int
+    acad_year: str  # Changed from int to str to match "2023-2024" format
     fee_amount: float
     fee_due: date
     membership_id: int

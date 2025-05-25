@@ -36,15 +36,30 @@ class DataTable(ttk.Frame):
     
     def clear(self):
         # --- Clear all items from the table ---
+        print("Clearing table items")  # Debug print
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.update_idletasks()
     
     def insert_data(self, data: List[dict]):
         # --- Insert data into the table ---
+        print(f"Inserting data into table: {data}")  # Debug print
         self.clear()
+        
+        if not data:
+            print("No data to insert")  # Debug print
+            return
+            
         for row_data in data:
-            values = [str(row_data.get(col, '')) for col in self.tree['columns']]
+            values = []
+            for col in self.tree['columns']:
+                value = str(row_data.get(col, ''))
+                values.append(value)
+            print(f"Inserting row with values: {values}")  # Debug print
             self.tree.insert('', tk.END, values=values)
+        
+        self.update_idletasks()
+        print("Data insertion complete")  # Debug print
     
     def get_selected_item(self) -> dict:
         # --- Get the currently selected item as a dictionary ---

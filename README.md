@@ -5,13 +5,25 @@
    - MariaDB Server
 
 2. INSTALL PYTHON DEPENDENCIES:
-   `pip install mariadb`
+   ```
+   pip install mariadb
+   ```
 
-3. RUN THE APPLICATION:
-   - Change the password to the password of your root user in `config.py`
-   - run `python run_app.py` in the terminal
+3. DATABASE SETUP:
+   - Create a MariaDB database named `student_membership_db`
+   - Update database credentials in `config.py`
+   - Run `mysql -uroot -p {your password} < test.sql` to populate test data
 
-4. FIRST RUN:
-   - Choose 'Yes' when asked about database setup
-   - This will create all tables and sample data
-   - Subsequent runs: choose 'No'
+4. RUN THE APPLICATION:
+   ```
+   python run_app.py
+   ```
+
+5. FEATURES:
+   - Student Management
+   - Organization Management
+   - Membership Management
+   - Financial Tracking
+   - Term Management
+   - Payment Processing
+   - Comprehensive Reports

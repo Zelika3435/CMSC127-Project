@@ -122,9 +122,55 @@ class DatabaseManager:
         ))
     
     def update_membership_status(self, membership_id: int, status: str) -> bool:
-        # Update membership status
+        """Update membership status and handle fee adjustments"""
+        # Get current membership info
+        query = """
+        SELECT m.membership_id, m.student_id, m.org_id, m.batch
+        FROM membership m
+        WHERE m.membership_id = ?
+        """
+        result = self.execute_query(query, (membership_id,))
+        if not result:
+            return False
+        
+        membership_id, student_id, org_id, batch = result[0]
+        
+        # Update status
         query = "UPDATE membership SET mem_status=? WHERE membership_id=?"
-        return self.execute_update(query, (status, membership_id))
+        if not self.execute_update(query, (status, membership_id)):
+            return False
+        
+        # If becoming inactive, create a term with inactive fee
+        if status == 'inactive':
+            from datetime import date, timedelta
+            current_date = date.today()
+            
+            # Determine current semester and academic year
+            month = current_date.month
+            if month >= 6 and month <= 10:
+                semester = "1st"
+                acad_year = f"{current_date.year}-{current_date.year + 1}"
+            elif month >= 11 or month <= 3:
+                semester = "2nd"
+                acad_year = f"{current_date.year}-{current_date.year + 1}"
+            else:
+                semester = "Summer"
+                acad_year = f"{current_date.year}-{current_date.year + 1}"
+            
+            # Create term with inactive fee
+            term = Term(
+                term_id=None,
+                semester=semester,
+                term_start=current_date,
+                term_end=current_date + timedelta(days=180),
+                acad_year=acad_year,
+                fee_amount=500.0,  # Inactive fee
+                fee_due=current_date + timedelta(days=30),
+                membership_id=membership_id
+            )
+            self.add_term(term)
+        
+        return True
     
     def get_members_by_organization(self, org_id: int = None) -> List[dict]:
         # Get all members with their membership status and organization
@@ -140,7 +186,9 @@ class DatabaseManager:
             WHERE org.org_id = ?
             ORDER BY s.last_name, s.first_name
             """
+            print(f"Executing query for org_id: {org_id}")  # Debug print
             results = self.execute_query(query, (org_id,))
+            print(f"Query results: {results}")  # Debug print
         else:
             query = """
             SELECT s.student_id, s.first_name, s.last_name, 
@@ -155,7 +203,7 @@ class DatabaseManager:
             results = self.execute_query(query)
         
         if results:
-            return [
+            members = [
                 {
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
                     'status': row[3], 'batch': row[4], 'committee': row[5],
@@ -164,14 +212,18 @@ class DatabaseManager:
                 }
                 for row in results
             ]
+            print(f"Processed members: {members}")  # Debug print
+            return members
+        print("No results found")  # Debug print
         return []
     
     def get_members_with_unpaid_fees(self, org_id: int, semester: str, acad_year: str) -> List[dict]:
-        # Get members with unpaid fees for a specific organization, semester, and academic year
+        """Get members with unpaid fees for a specific organization, semester, and academic year"""
         query = """
         SELECT s.student_id, s.first_name, s.last_name, 
                t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
-               (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance
+               (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance,
+               m.mem_status
         FROM student s
         JOIN member mb ON s.student_id = mb.student_id
         JOIN membership m ON mb.student_id = m.student_id
@@ -179,6 +231,7 @@ class DatabaseManager:
         JOIN term t ON m.membership_id = t.membership_id
         LEFT JOIN payment p ON t.term_id = p.term_id
         WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        AND m.mem_status NOT IN ('expelled', 'alumni')
         GROUP BY s.student_id, t.term_id
         HAVING balance > 0
         """
@@ -188,7 +241,8 @@ class DatabaseManager:
             return [
                 {
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
-                    'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5]
+                    'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5],
+                    'status': row[6]
                 }
                 for row in results
             ]
@@ -398,8 +452,54 @@ class DatabaseManager:
         return []
     
     # TERM AND PAYMENT OPERATIONS
+    def calculate_member_fees(self, membership_id: int, semester: str, acad_year: str) -> float:
+        """Calculate fees for a member based on their status"""
+        # Get membership status
+        query = """
+        SELECT m.mem_status, m.batch
+        FROM membership m
+        WHERE m.membership_id = ?
+        """
+        result = self.execute_query(query, (membership_id,))
+        if not result:
+            return 0.0
+        
+        status, batch = result[0]
+        
+        # No fees for expelled or alumni
+        if status in ['expelled', 'alumni']:
+            return 0.0
+        
+        # Check if this is the semester they became inactive
+        if status == 'inactive':
+            # Get the term when they became inactive
+            query = """
+            SELECT t.semester, t.acad_year
+            FROM term t
+            JOIN membership m ON t.membership_id = m.membership_id
+            WHERE m.membership_id = ? AND m.mem_status = 'inactive'
+            ORDER BY t.term_start DESC
+            LIMIT 1
+            """
+            result = self.execute_query(query, (membership_id,))
+            if result and result[0][0] == semester and result[0][1] == acad_year:
+                return 500.0  # One-time inactive fee
+            return 0.0
+        
+        # Active members pay full fee
+        if status == 'active':
+            return 1000.0
+        
+        return 0.0
+
     def add_term(self, term: Term) -> bool:
-        # Add a new term
+        """Add a new term with calculated fees"""
+        # Calculate fees based on membership status
+        fee_amount = self.calculate_member_fees(term.membership_id, term.semester, term.acad_year)
+        
+        # Update term with calculated fee
+        term.fee_amount = fee_amount
+        
         query = """
         INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -469,3 +569,103 @@ class DatabaseManager:
                 for row in results
             ]
         return []
+
+    def drop_all_tables(self) -> bool:
+        """Drop all tables in the database"""
+        try:
+            # Drop tables in reverse order of dependencies
+            tables = [
+                "payment",
+                "term",
+                "membership",
+                "member",
+                "student",
+                "organization"
+            ]
+            
+            for table in tables:
+                query = f"DROP TABLE IF EXISTS {table}"
+                if not self.execute_update(query):
+                    print(f"Failed to drop table {table}")
+                    return False
+            
+            print("All tables dropped successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error dropping tables: {e}")
+            return False
+
+    def recreate_database(self) -> bool:
+        """Drop all tables and recreate them"""
+        try:
+            # First drop all tables
+            if not self.drop_all_tables():
+                return False
+            
+            # Create tables
+            queries = [
+                """CREATE TABLE organization (
+                    org_id INT PRIMARY KEY AUTO_INCREMENT,
+                    org_name VARCHAR(100) NOT NULL
+                )""",
+                
+                """CREATE TABLE student (
+                    student_id INT PRIMARY KEY AUTO_INCREMENT,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    gender VARCHAR(10),
+                    degree_program VARCHAR(100),
+                    standing VARCHAR(20)
+                )""",
+                
+                """CREATE TABLE member (
+                    member_id INT PRIMARY KEY AUTO_INCREMENT,
+                    student_id INT,
+                    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE
+                )""",
+                
+                """CREATE TABLE membership (
+                    membership_id INT PRIMARY KEY AUTO_INCREMENT,
+                    batch VARCHAR(20),
+                    mem_status VARCHAR(20),
+                    committee VARCHAR(50),
+                    org_id INT,
+                    student_id INT,
+                    FOREIGN KEY (org_id) REFERENCES organization(org_id) ON DELETE CASCADE,
+                    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE
+                )""",
+                
+                """CREATE TABLE term (
+                    term_id INT PRIMARY KEY AUTO_INCREMENT,
+                    semester VARCHAR(20),
+                    term_start DATE,
+                    term_end DATE,
+                    acad_year VARCHAR(20),
+                    fee_amount DECIMAL(10,2),
+                    fee_due DATE,
+                    membership_id INT,
+                    FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
+                )""",
+                
+                """CREATE TABLE payment (
+                    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+                    payment_status VARCHAR(20),
+                    amount DECIMAL(10,2),
+                    payment_date DATE,
+                    term_id INT,
+                    FOREIGN KEY (term_id) REFERENCES term(term_id) ON DELETE CASCADE
+                )"""
+            ]
+            
+            for query in queries:
+                if not self.execute_update(query):
+                    print(f"Failed to execute query: {query}")
+                    return False
+            
+            print("Database schema recreated successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error recreating database: {e}")
+            return False

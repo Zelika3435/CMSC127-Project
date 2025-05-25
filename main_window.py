@@ -4,18 +4,20 @@ from gui_components import DataTable, FormDialog
 from database import DatabaseManager
 from datetime import datetime
 
-class MainWindow(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        
-        self.title("Organization Management System")
-        self.geometry("1200x800")
+from models import Membership, Payment, Student, Term
+
+class MainWindow(tk.Frame):
+    def __init__(self, root):
+        super().__init__(root)
+        self.root = root
+        self.root.title("Organization Management System")
+        self.root.geometry("1200x800")
         
         # Initialize database
         self.db = DatabaseManager()
         if not self.db.connect():
             messagebox.showerror("Error", "Could not connect to database")
-            self.destroy()
+            self.root.destroy()
             return
         
         # Create main notebook (tabs)
@@ -33,15 +35,18 @@ class MainWindow(tk.Tk):
         
         # Menu bar
         self.create_menu()
+        
+        # Pack the main frame
+        self.pack(fill=tk.BOTH, expand=True)
     
     def create_menu(self):
         menubar = tk.Menu(self)
-        self.config(menu=menubar)
+        self.root.config(menu=menubar)
         
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Exit", command=self.destroy)
+        file_menu.add_command(label="Exit", command=self.root.destroy)
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -107,9 +112,10 @@ class MainWindow(tk.Tk):
         self.acad_year_combo.grid(row=0, column=5, padx=5)
         
         ttk.Button(filter_frame, text="Apply Filter", command=self.load_financial_data).grid(row=0, column=6, padx=5)
+        ttk.Button(filter_frame, text="Create Terms", command=self.create_terms).grid(row=0, column=7, padx=5)
         
         # Fee list
-        columns = ['Student ID', 'Name', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
+        columns = ['Student ID', 'Name', 'Status', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
         self.fee_table = DataTable(left_panel, columns)
         self.fee_table.pack(fill=tk.BOTH, expand=True)
         
@@ -129,9 +135,30 @@ class MainWindow(tk.Tk):
         reports_frame = ttk.Frame(self.notebook)
         self.notebook.add(reports_frame, text="Reports")
         
-        # Left panel for report selection
+        # Left panel for report selection and filters
         left_panel = ttk.Frame(reports_frame)
         left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
+        
+        # Organization selection
+        org_frame = ttk.Frame(left_panel)
+        org_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(org_frame, text="Organization:").pack(side=tk.LEFT)
+        self.report_org_combo = ttk.Combobox(org_frame, state="readonly")
+        self.report_org_combo.pack(side=tk.LEFT, padx=5)
+        
+        # Academic year selection
+        year_frame = ttk.Frame(left_panel)
+        year_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(year_frame, text="Academic Year:").pack(side=tk.LEFT)
+        self.report_year_combo = ttk.Combobox(year_frame, state="readonly")
+        self.report_year_combo.pack(side=tk.LEFT, padx=5)
+        
+        # Semester selection
+        semester_frame = ttk.Frame(left_panel)
+        semester_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(semester_frame, text="Semester:").pack(side=tk.LEFT)
+        self.report_semester_combo = ttk.Combobox(semester_frame, values=["1st", "2nd", "Summer"], state="readonly")
+        self.report_semester_combo.pack(side=tk.LEFT, padx=5)
         
         # Report buttons
         ttk.Button(left_panel, text="Membership Status", command=self.show_membership_status).pack(fill=tk.X, pady=2)
@@ -139,6 +166,8 @@ class MainWindow(tk.Tk):
         ttk.Button(left_panel, text="Role History", command=self.show_role_history).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Alumni List", command=self.show_alumni).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Financial Summary", command=self.show_financial_summary).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Late Payments", command=self.show_late_payments_report).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Highest Debt", command=self.show_highest_debt_report).pack(fill=tk.X, pady=2)
         
         # Right panel for report display
         right_panel = ttk.Frame(reports_frame)
@@ -147,6 +176,70 @@ class MainWindow(tk.Tk):
         # Report display area
         self.report_table = DataTable(right_panel, ['No Data'])
         self.report_table.pack(fill=tk.BOTH, expand=True)
+        
+        # Load initial data
+        self.load_report_filters()
+    
+    def create_terms(self):
+        """Create terms for active members for the selected semester and academic year"""
+        org_name = self.fin_org_combo.get()
+        semester = self.semester_combo.get()
+        acad_year = self.acad_year_combo.get()
+        
+        if not all([org_name, semester, acad_year]):
+            messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
+            return
+        
+        if not messagebox.askyesno("Confirm", f"Create terms for {org_name} - {semester} {acad_year}?"):
+            return
+        
+        try:
+            # Get organization ID
+            orgs = self.db.get_all_organizations()
+            org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            
+            # Get all active members
+            members = self.db.get_members_by_organization(org_id)
+            active_members = [m for m in members if m['status'] == 'active']
+            
+            # Create terms for each active member
+            from datetime import date, timedelta
+            current_date = date.today()
+            term_end = current_date + timedelta(days=180)
+            fee_due = current_date + timedelta(days=30)
+            
+            terms_created = 0
+            for member in active_members:
+                # Check if term already exists
+                query = """
+                SELECT COUNT(*) FROM term t
+                JOIN membership m ON t.membership_id = m.membership_id
+                WHERE m.membership_id = ? AND t.semester = ? AND t.acad_year = ?
+                """
+                result = self.db.execute_query(query, (member['membership_id'], semester, acad_year))
+                if result and result[0][0] > 0:
+                    continue  # Term already exists
+                
+                # Create new term
+                term = Term(
+                    term_id=None,
+                    semester=semester,
+                    term_start=current_date,
+                    term_end=term_end,
+                    acad_year=acad_year,
+                    fee_amount=1000.0,  # Active member fee
+                    fee_due=fee_due,
+                    membership_id=member['membership_id']
+                )
+                
+                if self.db.add_term(term):
+                    terms_created += 1
+            
+            messagebox.showinfo("Success", f"Created {terms_created} new terms")
+            self.load_financial_data()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to create terms: {str(e)}")
     
     def load_organizations(self):
         orgs = self.db.get_all_organizations()
@@ -170,29 +263,124 @@ class MainWindow(tk.Tk):
         self.semester_combo.set("1st")
     
     def load_members(self, event=None):
-        org_name = self.org_combo.get()
-        if not org_name:
-            return
-        
-        orgs = self.db.get_all_organizations()
-        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
-        
-        members = self.db.get_members_by_organization(org_id)
-        self.member_table.insert_data(members)
+        try:
+            org_name = self.org_combo.get()
+            if not org_name:
+                return
+            
+            print(f"Loading members for organization: {org_name}")  # Debug print
+            
+            orgs = self.db.get_all_organizations()
+            if not orgs:
+                messagebox.showwarning("Warning", "No organizations found")
+                return
+                
+            print(f"Found organizations: {[org.org_name for org in orgs]}")  # Debug print
+            
+            org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            print(f"Selected org_id: {org_id}")  # Debug print
+            
+            members = self.db.get_members_by_organization(org_id)
+            print(f"Found members: {members}")  # Debug print
+            
+            # Clear existing items
+            self.member_table.clear()
+            
+            # Update table columns to match the data
+            columns = ['Student ID', 'First Name', 'Last Name', 'Status', 'Role', 'Batch']
+            self.member_table.tree['columns'] = columns
+            for col in columns:
+                self.member_table.tree.heading(col, text=col)
+                self.member_table.tree.column(col, width=100)
+            
+            # Insert new data
+            if members:
+                formatted_members = []
+                for member in members:
+                    formatted_member = {
+                        'Student ID': member['student_id'],
+                        'First Name': member['first_name'],
+                        'Last Name': member['last_name'],
+                        'Status': member['status'],
+                        'Role': member['committee'],
+                        'Batch': member['batch']
+                    }
+                    formatted_members.append(formatted_member)
+                
+                print(f"Formatted members for display: {formatted_members}")  # Debug print
+                self.member_table.insert_data(formatted_members)
+            else:
+                print("No members found to display")  # Debug print
+            
+            # Force update of the UI
+            self.member_table.update_idletasks()
+            self.root.update_idletasks()
+            
+            # Update status bar
+            self.status_bar.config(text=f"Loaded {len(members) if members else 0} members for {org_name}")
+            
+        except Exception as e:
+            print(f"Error loading members: {e}")  # Debug print
+            messagebox.showerror("Error", f"Failed to load members: {str(e)}")
+            self.status_bar.config(text="Error loading members")
     
     def load_financial_data(self):
-        org_name = self.fin_org_combo.get()
-        semester = self.semester_combo.get()
-        acad_year = self.acad_year_combo.get()
-        
-        if not all([org_name, semester, acad_year]):
-            return
-        
-        orgs = self.db.get_all_organizations()
-        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
-        
-        members = self.db.get_members_with_unpaid_fees(org_id, semester, acad_year)
-        self.fee_table.insert_data(members)
+        try:
+            org_name = self.fin_org_combo.get()
+            semester = self.semester_combo.get()
+            acad_year = self.acad_year_combo.get()
+            
+            if not all([org_name, semester, acad_year]):
+                messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
+                return
+            
+            orgs = self.db.get_all_organizations()
+            if not orgs:
+                messagebox.showwarning("Warning", "No organizations found")
+                return
+                
+            org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            
+            members = self.db.get_members_with_unpaid_fees(org_id, semester, acad_year)
+            
+            # Clear existing items
+            self.fee_table.clear()
+            
+            # Update table columns
+            columns = ['Student ID', 'Name', 'Status', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
+            self.fee_table.tree['columns'] = columns
+            for col in columns:
+                self.fee_table.tree.heading(col, text=col)
+                self.fee_table.tree.column(col, width=100)
+            
+            # Insert new data
+            if members:
+                formatted_members = []
+                for member in members:
+                    formatted_member = {
+                        'Student ID': member['student_id'],
+                        'Name': f"{member['first_name']} {member['last_name']}",
+                        'Status': member['status'],
+                        'Fee Amount': f"₱{member['fee_amount']:.2f}",
+                        'Amount Paid': f"₱{member['total_paid']:.2f}",
+                        'Balance': f"₱{member['balance']:.2f}",
+                        'Due Date': member.get('due_date', 'N/A')
+                    }
+                    formatted_members.append(formatted_member)
+                
+                self.fee_table.insert_data(formatted_members)
+            
+            # Force update of the UI
+            self.fee_table.update_idletasks()
+            self.root.update_idletasks()
+            
+            # Update status bar
+            self.status_bar.config(text=f"Loaded {len(members) if members else 0} members with unpaid fees for {org_name}")
+            
+        except Exception as e:
+            print(f"Error loading financial data: {e}")  # Debug print
+            messagebox.showerror("Error", f"Failed to load financial data: {str(e)}")
+            self.status_bar.config(text="Error loading financial data")
     
     def add_member(self):
         fields = [
@@ -251,7 +439,41 @@ class MainWindow(tk.Tk):
                 if not self.db.add_membership(membership):
                     raise Exception("Failed to add membership")
                 
-                messagebox.showinfo("Success", "Member added successfully")
+                # Get the membership ID
+                members = self.db.get_members_by_organization(org_id)
+                membership_id = next(m['membership_id'] for m in members if m['student_id'] == student_id)
+                
+                # Determine current semester and academic year
+                from datetime import date, timedelta
+                current_date = date.today()
+                month = current_date.month
+                
+                if month >= 6 and month <= 10:
+                    semester = "1st"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                elif month >= 11 or month <= 3:
+                    semester = "2nd"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                else:
+                    semester = "Summer"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                
+                # Create term with fee for new active member
+                term = Term(
+                    term_id=None,
+                    semester=semester,
+                    term_start=current_date,
+                    term_end=current_date + timedelta(days=180),
+                    acad_year=acad_year,
+                    fee_amount=1000.0,  # Active member fee
+                    fee_due=current_date + timedelta(days=30),
+                    membership_id=membership_id
+                )
+                
+                if not self.db.add_term(term):
+                    raise Exception("Failed to create term")
+                
+                messagebox.showinfo("Success", "Member added successfully with initial membership fee")
                 self.load_members()
                 
             except Exception as e:
@@ -407,8 +629,24 @@ class MainWindow(tk.Tk):
         highest_debt = self.db.get_highest_debt_members(org_id, semester, acad_year)
         self.fee_table.insert_data(highest_debt)
     
+    def load_report_filters(self):
+        # Load organizations
+        orgs = self.db.get_all_organizations()
+        self.report_org_combo['values'] = [org.org_name for org in orgs]
+        if orgs:
+            self.report_org_combo.set(orgs[0].org_name)
+        
+        # Set academic years (last 5 years)
+        current_year = datetime.now().year
+        years = [f"{year}-{year+1}" for year in range(current_year-4, current_year+1)]
+        self.report_year_combo['values'] = years
+        self.report_year_combo.set(years[-1])
+        
+        # Set semester
+        self.report_semester_combo.set("1st")
+    
     def show_membership_status(self):
-        org_name = self.org_combo.get()
+        org_name = self.report_org_combo.get()
         if not org_name:
             messagebox.showwarning("Warning", "Please select an organization")
             return
@@ -417,22 +655,46 @@ class MainWindow(tk.Tk):
         org_id = next(org.org_id for org in orgs if org.org_name == org_name)
         
         status = self.db.get_membership_status_percentage(org_id, 2)  # Last 2 semesters
-        self.report_table.insert_data([status])
+        
+        # Update table columns for membership status
+        columns = ['active_percentage', 'inactive_percentage', 'total_members']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = [{
+            'active_percentage': f"{status['active_percentage']:.2f}%",
+            'inactive_percentage': f"{status['inactive_percentage']:.2f}%",
+            'total_members': status['total_members']
+        }]
+        self.report_table.insert_data(formatted_data)
     
     def show_executive_committee(self):
-        org_name = self.org_combo.get()
-        if not org_name:
-            messagebox.showwarning("Warning", "Please select an organization")
+        org_name = self.report_org_combo.get()
+        acad_year = self.report_year_combo.get()
+        
+        if not org_name or not acad_year:
+            messagebox.showwarning("Warning", "Please select organization and academic year")
             return
         
         orgs = self.db.get_all_organizations()
         org_id = next(org.org_id for org in orgs if org.org_name == org_name)
         
-        committee = self.db.get_executive_committee(org_id, self.acad_year_combo.get())
+        committee = self.db.get_executive_committee(org_id, acad_year)
+        
+        # Update table columns for executive committee
+        columns = ['student_id', 'first_name', 'last_name', 'role']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
         self.report_table.insert_data(committee)
     
     def show_role_history(self):
-        org_name = self.org_combo.get()
+        org_name = self.report_org_combo.get()
         if not org_name:
             messagebox.showwarning("Warning", "Please select an organization")
             return
@@ -450,10 +712,18 @@ class MainWindow(tk.Tk):
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
             
             history = self.db.get_role_history(org_id, dialog.result['role'])
+            
+            # Update table columns for role history
+            columns = ['student_id', 'first_name', 'last_name', 'academic_year']
+            self.report_table.tree['columns'] = columns
+            for col in columns:
+                self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+                self.report_table.tree.column(col, width=100)
+            
             self.report_table.insert_data(history)
     
     def show_alumni(self):
-        org_name = self.org_combo.get()
+        org_name = self.report_org_combo.get()
         if not org_name:
             messagebox.showwarning("Warning", "Please select an organization")
             return
@@ -471,10 +741,18 @@ class MainWindow(tk.Tk):
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
             
             alumni = self.db.get_alumni_members(org_id, dialog.result['as_of_date'])
+            
+            # Update table columns for alumni
+            columns = ['student_id', 'first_name', 'last_name', 'batch']
+            self.report_table.tree['columns'] = columns
+            for col in columns:
+                self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+                self.report_table.tree.column(col, width=100)
+            
             self.report_table.insert_data(alumni)
     
     def show_financial_summary(self):
-        org_name = self.org_combo.get()
+        org_name = self.report_org_combo.get()
         if not org_name:
             messagebox.showwarning("Warning", "Please select an organization")
             return
@@ -492,15 +770,93 @@ class MainWindow(tk.Tk):
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
             
             summary = self.db.get_organization_financial_status(org_id, dialog.result['as_of_date'])
-            self.report_table.insert_data([summary])
+            
+            # Update table columns for financial summary
+            columns = ['total_fees', 'total_paid', 'total_unpaid']
+            self.report_table.tree['columns'] = columns
+            for col in columns:
+                self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+                self.report_table.tree.column(col, width=100)
+            
+            # Format the data
+            formatted_data = [{
+                'total_fees': f"₱{summary['total_fees']:.2f}",
+                'total_paid': f"₱{summary['total_paid']:.2f}",
+                'total_unpaid': f"₱{summary['total_unpaid']:.2f}"
+            }]
+            self.report_table.insert_data(formatted_data)
+    
+    def show_late_payments_report(self):
+        org_name = self.report_org_combo.get()
+        semester = self.report_semester_combo.get()
+        acad_year = self.report_year_combo.get()
+        
+        if not all([org_name, semester, acad_year]):
+            messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
+            return
+        
+        orgs = self.db.get_all_organizations()
+        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+        
+        late_payments = self.db.get_late_payments(org_id, semester, acad_year)
+        
+        # Update table columns for late payments
+        columns = ['student_id', 'first_name', 'last_name', 'payment_date', 'due_date', 'amount']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = []
+        for payment in late_payments:
+            formatted_data.append({
+                'student_id': payment['student_id'],
+                'first_name': payment['first_name'],
+                'last_name': payment['last_name'],
+                'payment_date': payment['payment_date'].strftime('%Y-%m-%d'),
+                'due_date': payment['due_date'].strftime('%Y-%m-%d'),
+                'amount': f"₱{payment['amount']:.2f}"
+            })
+        self.report_table.insert_data(formatted_data)
+    
+    def show_highest_debt_report(self):
+        org_name = self.report_org_combo.get()
+        semester = self.report_semester_combo.get()
+        acad_year = self.report_year_combo.get()
+        
+        if not all([org_name, semester, acad_year]):
+            messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
+            return
+        
+        orgs = self.db.get_all_organizations()
+        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+        
+        highest_debt = self.db.get_highest_debt_members(org_id, semester, acad_year)
+        
+        # Update table columns for highest debt
+        columns = ['student_id', 'first_name', 'last_name', 'fee_amount', 'total_paid', 'balance']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = []
+        for debt in highest_debt:
+            formatted_data.append({
+                'student_id': debt['student_id'],
+                'first_name': debt['first_name'],
+                'last_name': debt['last_name'],
+                'fee_amount': f"₱{debt['fee_amount']:.2f}",
+                'total_paid': f"₱{debt['total_paid']:.2f}",
+                'balance': f"₱{debt['balance']:.2f}"
+            })
+        self.report_table.insert_data(formatted_data)
     
     def show_about(self):
         messagebox.showinfo("About", "Organization Management System\nVersion 1.0")
     
     def __del__(self):
         if hasattr(self, 'db'):
-            self.db.disconnect()
-
-if __name__ == "__main__":
-    app = MainWindow()
-    app.mainloop() 
+            self.db.disconnect() 
