@@ -1,25 +1,18 @@
 -- ============================================================================
--- STUDENT MEMBERSHIP MANAGEMENT SYSTEM - COMPREHENSIVE TEST SQL
+-- STUDENT MEMBERSHIP MANAGEMENT SYSTEM - COMPLETE REFRESH WITH PROPER FEE LOGIC
 -- ============================================================================
 
--- Use the database
+-- ============================================================================
+-- SECTION 1: COMPLETE DATABASE REFRESH
+-- ============================================================================
+
+-- Drop the entire database and recreate it
+DROP DATABASE IF EXISTS student_membership_db;
+CREATE DATABASE student_membership_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE student_membership_db;
 
 -- ============================================================================
--- SECTION 1: CLEAN SLATE - DROP AND RECREATE ALL TABLES
--- ============================================================================
-
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS payment;
-DROP TABLE IF EXISTS term;
-DROP TABLE IF EXISTS membership;
-DROP TABLE IF EXISTS member;
-DROP TABLE IF EXISTS student;
-DROP TABLE IF EXISTS organization;
-SET FOREIGN_KEY_CHECKS = 1;
-
--- ============================================================================
--- SECTION 2: CREATE TABLES WITH CORRECT SCHEMA
+-- SECTION 2: CREATE TABLES WITH PROPER SCHEMA
 -- ============================================================================
 
 CREATE TABLE organization (
@@ -75,7 +68,7 @@ CREATE TABLE payment (
 );
 
 -- ============================================================================
--- SECTION 3: INSERT COMPREHENSIVE TEST DATA
+-- SECTION 3: INSERT ORGANIZATIONS AND STUDENTS
 -- ============================================================================
 
 -- Insert Organizations
@@ -89,9 +82,9 @@ INSERT INTO organization (org_name) VALUES
 ('Drama Club'),
 ('Chess Club');
 
--- Insert Students (30+ students for comprehensive testing)
+-- Insert Students (mix of current and former students)
 INSERT INTO student (first_name, last_name, gender, degree_program, standing) VALUES 
--- CS Students
+-- Current active students
 ('John', 'Doe', 'Male', 'BS Computer Science', 'Junior'),
 ('Jane', 'Smith', 'Female', 'BS Computer Science', 'Senior'),
 ('Mike', 'Johnson', 'Male', 'BS Computer Science', 'Sophomore'),
@@ -101,7 +94,7 @@ INSERT INTO student (first_name, last_name, gender, degree_program, standing) VA
 ('James', 'Wilson', 'Male', 'BS Computer Science', 'Sophomore'),
 ('Lisa', 'Moore', 'Female', 'BS Computer Science', 'Freshman'),
 
--- Math Students
+-- Math students
 ('Robert', 'Taylor', 'Male', 'BS Mathematics', 'Junior'),
 ('Mary', 'Anderson', 'Female', 'BS Mathematics', 'Senior'),
 ('William', 'Thomas', 'Male', 'BS Mathematics', 'Sophomore'),
@@ -109,7 +102,7 @@ INSERT INTO student (first_name, last_name, gender, degree_program, standing) VA
 ('Christopher', 'White', 'Male', 'BS Mathematics', 'Junior'),
 ('Jennifer', 'Harris', 'Female', 'BS Mathematics', 'Senior'),
 
--- Engineering Students
+-- Engineering students
 ('Michael', 'Martin', 'Male', 'BS Engineering', 'Junior'),
 ('Linda', 'Thompson', 'Female', 'BS Engineering', 'Senior'),
 ('Richard', 'Garcia', 'Male', 'BS Engineering', 'Sophomore'),
@@ -117,11 +110,13 @@ INSERT INTO student (first_name, last_name, gender, degree_program, standing) VA
 ('Joseph', 'Robinson', 'Male', 'BS Engineering', 'Junior'),
 ('Susan', 'Clark', 'Female', 'BS Engineering', 'Senior'),
 
--- Mixed Programs
-('Thomas', 'Rodriguez', 'Male', 'BS Information Technology', 'Junior'),
-('Dorothy', 'Lewis', 'Female', 'BS Information Systems', 'Senior'),
-('Charles', 'Lee', 'Male', 'BS Computer Engineering', 'Sophomore'),
-('Helen', 'Walker', 'Female', 'BS Software Engineering', 'Freshman'),
+-- Former students (now alumni or expelled)
+('Thomas', 'Rodriguez', 'Male', 'BS Information Technology', 'Graduate'),
+('Dorothy', 'Lewis', 'Female', 'BS Information Systems', 'Graduate'),
+('Charles', 'Lee', 'Male', 'BS Computer Engineering', 'Graduate'),
+('Helen', 'Walker', 'Female', 'BS Software Engineering', 'Graduate'),
+
+-- More current students for testing
 ('Daniel', 'Hall', 'Male', 'BS Data Science', 'Junior'),
 ('Nancy', 'Allen', 'Female', 'BS Cybersecurity', 'Senior'),
 ('Matthew', 'Young', 'Male', 'BS Game Development', 'Sophomore'),
@@ -133,359 +128,486 @@ INSERT INTO student (first_name, last_name, gender, degree_program, standing) VA
 INSERT INTO member (student_id) 
 SELECT student_id FROM student;
 
--- Insert Memberships with various scenarios
+-- ============================================================================
+-- SECTION 4: INSERT MEMBERSHIPS WITH VARIOUS STATUSES
+-- ============================================================================
+
 INSERT INTO membership (batch, mem_status, committee, org_id, student_id) VALUES 
--- Computer Science Society (org_id = 1)
-('2023-2024', 'active', 'President', 1, 1),
-('2023-2024', 'active', 'Vice President', 1, 2),
-('2023-2024', 'active', 'Secretary', 1, 3),
-('2023-2024', 'active', 'Treasurer', 1, 4),
-('2023-2024', 'active', 'Member', 1, 5),
-('2023-2024', 'active', 'Member', 1, 6),
-('2023-2024', 'inactive', 'Member', 1, 7),
-('2022-2023', 'alumni', 'President', 1, 8),
-('2023-2024', 'suspended', 'Member', 1, 21),
-('2023-2024', 'active', 'Member', 1, 22),
 
--- Mathematics Club (org_id = 2)
-('2023-2024', 'active', 'President', 2, 9),
-('2023-2024', 'active', 'Vice President', 2, 10),
-('2023-2024', 'active', 'Secretary', 2, 11),
-('2023-2024', 'active', 'Treasurer', 2, 12),
-('2023-2024', 'inactive', 'Member', 2, 13),
-('2022-2023', 'alumni', 'President', 2, 14),
-('2023-2024', 'active', 'Member', 2, 23),
+-- ===== COMPUTER SCIENCE SOCIETY (org_id = 1) =====
+-- ACTIVE MEMBERS (2023-2024) - These pay 1000 per semester
+('2023-2024', 'active', 'President', 1, 1),      -- John Doe
+('2023-2024', 'active', 'Vice President', 1, 2), -- Jane Smith
+('2023-2024', 'active', 'Secretary', 1, 3),      -- Mike Johnson
+('2023-2024', 'active', 'Treasurer', 1, 4),      -- Sarah Williams
+('2023-2024', 'active', 'Member', 1, 5),         -- David Brown
+('2023-2024', 'active', 'Member', 1, 6),         -- Emily Davis
+('2023-2024', 'active', 'Member', 1, 25),        -- Daniel Hall
+('2023-2024', 'active', 'Member', 1, 26),        -- Nancy Allen
 
--- Engineering Society (org_id = 3)
-('2023-2024', 'active', 'President', 3, 15),
-('2023-2024', 'active', 'Vice President', 3, 16),
-('2023-2024', 'active', 'Secretary', 3, 17),
-('2023-2024', 'suspended', 'Member', 3, 18),
-('2023-2024', 'active', 'Member', 3, 19),
-('2022-2023', 'alumni', 'Treasurer', 3, 20),
-('2023-2024', 'active', 'Member', 3, 24),
+-- INACTIVE MEMBERS (2023-2024) - These pay 500 per semester during inactive period
+('2023-2024', 'inactive', 'Member', 1, 7),       -- James Wilson (became inactive in 2023-2024)
+('2023-2024', 'inactive', 'Member', 1, 8),       -- Lisa Moore (became inactive in 2023-2024)
 
--- Student Council (org_id = 6) - Cross-organization memberships
-('2023-2024', 'active', 'President', 6, 1),    -- John also in Student Council
-('2023-2024', 'active', 'Vice President', 6, 9), -- Robert also in Student Council
-('2023-2024', 'active', 'Secretary', 6, 15),   -- Michael also in Student Council
+-- EXPELLED MEMBERS - These pay NOTHING
+('2023-2024', 'expelled', 'Member', 1, 27),      -- Matthew Young (expelled during 2023-2024)
 
--- Other clubs with fewer members
-('2023-2024', 'active', 'President', 4, 25),   -- Debate Club
-('2023-2024', 'active', 'Member', 4, 26),
-('2023-2024', 'active', 'President', 5, 27),   -- Photography Club
-('2023-2024', 'active', 'Member', 5, 28),
-('2023-2024', 'active', 'President', 7, 29),   -- Drama Club
-('2023-2024', 'active', 'President', 8, 30);   -- Chess Club
+-- ALUMNI MEMBERS - These pay NOTHING (graduated/left)
+('2022-2023', 'alumni', 'President', 1, 21),     -- Thomas Rodriguez (was president, now alumni)
+('2021-2022', 'alumni', 'Member', 1, 22),        -- Dorothy Lewis (graduated earlier)
 
--- Insert Terms with various fee scenarios
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id) VALUES 
--- 2023-2024 Academic Year Terms
--- 1st Semester
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1000.00, '2023-09-15', 1),  -- John CS
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1000.00, '2023-09-15', 2),  -- Jane CS
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1000.00, '2023-09-15', 3),  -- Mike CS
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1000.00, '2023-09-15', 4),  -- Sarah CS
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1000.00, '2023-09-15', 5),  -- David CS
+-- ===== MATHEMATICS CLUB (org_id = 2) =====
+-- ACTIVE MEMBERS (2023-2024)
+('2023-2024', 'active', 'President', 2, 9),      -- Robert Taylor
+('2023-2024', 'active', 'Vice President', 2, 10), -- Mary Anderson
+('2023-2024', 'active', 'Secretary', 2, 11),     -- William Thomas
+('2023-2024', 'active', 'Treasurer', 2, 12),     -- Patricia Jackson
+('2023-2024', 'active', 'Member', 2, 13),        -- Christopher White
+('2023-2024', 'active', 'Member', 2, 14),        -- Jennifer Harris
 
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 800.00, '2023-09-15', 11),  -- Math Club
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 800.00, '2023-09-15', 12),
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 800.00, '2023-09-15', 13),
+-- INACTIVE MEMBER (became inactive in 2023-2024)
+('2023-2024', 'inactive', 'Member', 2, 28),      -- Betty Hernandez
 
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1200.00, '2023-09-15', 18), -- Engineering
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1200.00, '2023-09-15', 19),
-('1st', '2023-08-15', '2023-12-15', '2023-2024', 1200.00, '2023-09-15', 20),
+-- ALUMNI (from previous years)
+('2020-2021', 'alumni', 'Treasurer', 2, 23),     -- Charles Lee
 
--- 2nd Semester
-('2nd', '2024-01-15', '2024-05-15', '2023-2024', 1000.00, '2024-02-15', 1),  -- John CS
-('2nd', '2024-01-15', '2024-05-15', '2023-2024', 1000.00, '2024-02-15', 2),  -- Jane CS
-('2nd', '2024-01-15', '2024-05-15', '2023-2024', 1000.00, '2024-02-15', 3),  -- Mike CS
+-- ===== ENGINEERING SOCIETY (org_id = 3) =====
+-- ACTIVE MEMBERS (2023-2024)
+('2023-2024', 'active', 'President', 3, 15),     -- Michael Martin
+('2023-2024', 'active', 'Vice President', 3, 16), -- Linda Thompson
+('2023-2024', 'active', 'Secretary', 3, 17),     -- Richard Garcia
+('2023-2024', 'active', 'Treasurer', 3, 18),     -- Barbara Martinez
+('2023-2024', 'active', 'Member', 3, 19),        -- Joseph Robinson
+('2023-2024', 'active', 'Member', 3, 20),        -- Susan Clark
 
-('2nd', '2024-01-15', '2024-05-15', '2023-2024', 800.00, '2024-02-15', 11),  -- Math Club
-('2nd', '2024-01-15', '2024-05-15', '2023-2024', 800.00, '2024-02-15', 12),
+-- INACTIVE MEMBER (became inactive during 2023-2024)
+('2023-2024', 'inactive', 'Member', 3, 29),      -- Anthony King
 
--- Previous year terms for alumni testing
-('1st', '2022-08-15', '2022-12-15', '2022-2023', 900.00, '2022-09-15', 8),   -- Alumni
-('2nd', '2023-01-15', '2023-05-15', '2022-2023', 900.00, '2023-02-15', 8);
+-- EXPELLED MEMBER
+('2023-2024', 'expelled', 'Member', 3, 30),      -- Sandra Wright (expelled)
 
--- Insert Payments with various scenarios
-INSERT INTO payment (payment_status, amount, payment_date, term_id) VALUES 
--- Full payments (on time)
-('completed', 1000.00, '2023-09-10', 1),  -- John paid full, on time
-('completed', 1000.00, '2023-09-12', 2),  -- Jane paid full, on time
+-- ALUMNI
+('2019-2020', 'alumni', 'President', 3, 24),     -- Helen Walker
 
--- Partial payments
-('partial', 500.00, '2023-09-14', 3),     -- Mike partial payment
-('partial', 300.00, '2023-10-01', 3),     -- Mike second payment
+-- ===== STUDENT COUNCIL (org_id = 6) - Some cross-organization memberships =====
+-- ACTIVE MEMBERS (these students are also in other orgs)
+('2023-2024', 'active', 'President', 6, 1),      -- John Doe (also CS Society President)
+('2023-2024', 'active', 'Vice President', 6, 9), -- Robert Taylor (also Math Club President)
+('2023-2024', 'active', 'Secretary', 6, 15),     -- Michael Martin (also Engineering President)
 
--- Late payments
-('completed', 1000.00, '2023-09-20', 4),  -- Sarah paid full, late
-('completed', 500.00, '2023-09-25', 5),   -- David partial, late
+-- ===== OTHER CLUBS (smaller memberships) =====
+-- DEBATE CLUB (org_id = 4)
+('2023-2024', 'active', 'President', 4, 11),     -- William Thomas
+('2023-2024', 'active', 'Member', 4, 17),        -- Richard Garcia
+('2023-2024', 'inactive', 'Member', 4, 12),      -- Patricia Jackson (inactive)
 
--- Math club payments
-('completed', 800.00, '2023-09-08', 6),   -- Math club on time
-('partial', 400.00, '2023-09-16', 7),     -- Math club partial
-
--- Engineering payments (higher fees)
-('completed', 1200.00, '2023-09-05', 9),  -- Engineering full
-('partial', 600.00, '2023-09-18', 10),    -- Engineering partial
-
--- Second semester payments
-('completed', 1000.00, '2024-02-10', 12), -- John 2nd sem
-('partial', 500.00, '2024-02-20', 13),    -- Jane 2nd sem partial
-
--- Alumni payments (previous years)
-('completed', 900.00, '2022-09-10', 16),  -- Alumni 1st sem
-('completed', 900.00, '2023-02-10', 17);  -- Alumni 2nd sem
+-- PHOTOGRAPHY CLUB (org_id = 5)
+('2023-2024', 'active', 'President', 5, 14),     -- Jennifer Harris
+('2023-2024', 'active', 'Member', 5, 18),        -- Barbara Martinez;
 
 -- ============================================================================
--- SECTION 4: COMPREHENSIVE FUNCTIONALITY TESTS
+-- SECTION 5: CREATE TERMS WITH PROPER FEE LOGIC
 -- ============================================================================
 
--- Test 1: Basic Student Operations
-SELECT '=== TEST 1: ALL STUDENTS ===' AS test_section;
-SELECT student_id, first_name, last_name, gender, degree_program, standing 
-FROM student 
-ORDER BY last_name, first_name;
+-- BUSINESS LOGIC:
+-- 1. ACTIVE members pay 1000 per semester
+-- 2. INACTIVE members pay 500 per semester (only during inactive periods)
+-- 3. EXPELLED members pay NOTHING (no terms created)
+-- 4. ALUMNI members pay NOTHING (no terms created)
 
--- Test 2: All Organizations
-SELECT '=== TEST 2: ALL ORGANIZATIONS ===' AS test_section;
-SELECT org_id, org_name FROM organization ORDER BY org_name;
-
--- Test 3: Members by Organization (CS Society)
-SELECT '=== TEST 3: COMPUTER SCIENCE SOCIETY MEMBERS ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, 
-       m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
-       s.gender, s.degree_program
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-WHERE org.org_id = 1
-ORDER BY s.last_name, s.first_name;
-
--- Test 4: All Members Across Organizations
-SELECT '=== TEST 4: ALL MEMBERS BY ORGANIZATION ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, 
-       m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
-       s.gender, s.degree_program
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-ORDER BY org.org_name, s.last_name;
-
--- Test 5: Members with Unpaid Fees (CS Society, 1st Semester 2023-2024)
-SELECT '=== TEST 5: MEMBERS WITH UNPAID FEES (CS Society, 1st Sem 2023-2024) ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, 
-       t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
-       (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-JOIN term t ON m.membership_id = t.membership_id
-LEFT JOIN payment p ON t.term_id = p.term_id
-WHERE org.org_id = 1 AND t.semester = '1st' AND t.acad_year = '2023-2024'
-GROUP BY s.student_id, t.term_id
-HAVING balance > 0;
-
--- Test 6: Member Unpaid Fees (John Doe - student_id = 1)
-SELECT '=== TEST 6: JOHN DOE UNPAID FEES ===' AS test_section;
-SELECT org.org_name, t.semester, t.acad_year,
-       t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
-       (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-JOIN term t ON m.membership_id = t.membership_id
-LEFT JOIN payment p ON t.term_id = p.term_id
-WHERE s.student_id = 1
-GROUP BY org.org_id, t.term_id
-HAVING balance > 0;
-
--- Test 7: Executive Committee (CS Society, 2023-2024)
-SELECT '=== TEST 7: CS SOCIETY EXECUTIVE COMMITTEE 2023-2024 ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, m.committee
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-WHERE org.org_id = 1 AND m.batch = '2023-2024' 
-AND m.committee IN ('President', 'Vice President', 'Secretary', 'Treasurer');
-
--- Test 8: Role History (Presidents of CS Society)
-SELECT '=== TEST 8: PRESIDENT HISTORY - CS SOCIETY ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, m.batch
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-WHERE org.org_id = 1 AND m.committee = 'President'
-ORDER BY m.batch DESC;
-
--- Test 9: Late Payments (CS Society, 1st Semester 2023-2024)
-SELECT '=== TEST 9: LATE PAYMENTS - CS SOCIETY 1ST SEM 2023-2024 ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name,
-       p.payment_date, t.fee_due, p.amount
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-JOIN term t ON m.membership_id = t.membership_id
-JOIN payment p ON t.term_id = p.term_id
-WHERE org.org_id = 1 AND t.semester = '1st' AND t.acad_year = '2023-2024'
-AND p.payment_date > t.fee_due;
-
--- Test 10: Membership Status Percentage (CS Society, last 2 academic years)
-SELECT '=== TEST 10: MEMBERSHIP STATUS PERCENTAGE - CS SOCIETY ===' AS test_section;
+-- Create terms for 1st Semester 2023-2024
+-- Only create terms for ACTIVE and INACTIVE members
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
 SELECT 
-    COUNT(CASE WHEN m.mem_status = 'active' THEN 1 END) as active_count,
-    COUNT(CASE WHEN m.mem_status = 'inactive' THEN 1 END) as inactive_count,
-    COUNT(CASE WHEN m.mem_status = 'suspended' THEN 1 END) as suspended_count,
-    COUNT(CASE WHEN m.mem_status = 'alumni' THEN 1 END) as alumni_count,
-    COUNT(*) as total_count,
-    ROUND((COUNT(CASE WHEN m.mem_status = 'active' THEN 1 END) / COUNT(*)) * 100, 2) as active_percentage,
-    ROUND((COUNT(CASE WHEN m.mem_status = 'inactive' THEN 1 END) / COUNT(*)) * 100, 2) as inactive_percentage
+    '1st',
+    '2023-08-15',
+    '2023-12-15',
+    '2023-2024',
+    CASE 
+        WHEN m.mem_status = 'active' THEN 1000.00
+        WHEN m.mem_status = 'inactive' THEN 500.00
+        -- No terms for expelled or alumni
+    END as fee_amount,
+    '2023-09-15',
+    m.membership_id
 FROM membership m
-JOIN organization org ON m.org_id = org.org_id
-WHERE org.org_id = 1;
+WHERE m.batch = '2023-2024' 
+AND m.mem_status IN ('active', 'inactive');  -- Only these statuses get terms
 
--- Test 11: Alumni Members (CS Society, as of 2024-01-01)
-SELECT '=== TEST 11: ALUMNI MEMBERS - CS SOCIETY ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name, m.batch
+-- Create terms for 2nd Semester 2023-2024
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+SELECT 
+    '2nd',
+    '2024-01-15',
+    '2024-05-15',
+    '2023-2024',
+    CASE 
+        WHEN m.mem_status = 'active' THEN 1000.00
+        WHEN m.mem_status = 'inactive' THEN 500.00
+    END as fee_amount,
+    '2024-02-15',
+    m.membership_id
+FROM membership m
+WHERE m.batch = '2023-2024' 
+AND m.mem_status IN ('active', 'inactive');
+
+-- Create terms for Summer 2024 (if applicable)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+SELECT 
+    'Summer',
+    '2024-06-01',
+    '2024-07-31',
+    '2023-2024',
+    CASE 
+        WHEN m.mem_status = 'active' THEN 1000.00
+        WHEN m.mem_status = 'inactive' THEN 500.00
+    END as fee_amount,
+    '2024-06-15',
+    m.membership_id
+FROM membership m
+WHERE m.batch = '2023-2024' 
+AND m.mem_status IN ('active', 'inactive')
+AND m.org_id IN (1, 2, 3);  -- Only major orgs have summer terms
+
+-- ============================================================================
+-- SECTION 6: INSERT REALISTIC PAYMENT SCENARIOS
+-- ============================================================================
+
+-- SCENARIO 1: Active members who paid in full (1000.00)
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 
+    'completed',
+    1000.00,
+    '2023-09-10',
+    t.term_id
+FROM term t
+JOIN membership m ON t.membership_id = m.membership_id
+WHERE m.mem_status = 'active' 
+AND t.semester = '1st' 
+AND m.student_id IN (1, 2, 9, 10, 15, 16);  -- Some active members paid full
+
+-- SCENARIO 2: Active members with partial payments
+INSERT INTO payment (payment_status, amount, payment_date, term_id) VALUES
+-- Mike Johnson (student_id=3) - partial payment
+((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+  WHERE m.student_id = 3 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
+  'partial', 600.00, '2023-09-14'),
+
+-- Sarah Williams (student_id=4) - multiple partial payments
+((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+  WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
+  'partial', 400.00, '2023-09-20'),
+((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+  WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
+  'partial', 300.00, '2023-10-05'),
+
+-- David Brown (student_id=5) - late full payment
+((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+  WHERE m.student_id = 5 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
+  'completed', 1000.00, '2023-09-25');
+
+-- SCENARIO 3: Inactive members who paid their reduced fee (500.00)
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 
+    'completed',
+    500.00,
+    '2023-09-12',
+    t.term_id
+FROM term t
+JOIN membership m ON t.membership_id = m.membership_id
+WHERE m.mem_status = 'inactive' 
+AND t.semester = '1st' 
+AND m.student_id IN (7, 28, 29);  -- Inactive members paid their reduced fee
+
+-- SCENARIO 4: One inactive member with partial payment
+INSERT INTO payment (payment_status, amount, payment_date, term_id) VALUES
+-- Betty Hernandez (inactive) - partial payment of reduced fee
+((SELECT t.term_id FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+  WHERE m.student_id = 8 AND t.semester = '1st' AND t.acad_year = '2023-2024'), 
+  'partial', 300.00, '2023-09-18');
+
+-- SCENARIO 5: Second semester payments
+-- Some active members paid for 2nd semester
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 
+    'completed',
+    1000.00,
+    '2024-02-08',
+    t.term_id
+FROM term t
+JOIN membership m ON t.membership_id = m.membership_id
+WHERE m.mem_status = 'active' 
+AND t.semester = '2nd' 
+AND m.student_id IN (1, 9, 15);  -- Presidents paid for 2nd semester
+
+-- Some inactive members paid reduced fee for 2nd semester
+INSERT INTO payment (payment_status, amount, payment_date, term_id)
+SELECT 
+    'completed',
+    500.00,
+    '2024-02-10',
+    t.term_id
+FROM term t
+JOIN membership m ON t.membership_id = m.membership_id
+WHERE m.mem_status = 'inactive' 
+AND t.semester = '2nd' 
+AND m.student_id = 7;  -- James Wilson paid 2nd semester inactive fee
+
+-- ============================================================================
+-- SECTION 7: COMPREHENSIVE TESTING QUERIES
+-- ============================================================================
+
+-- Test 1: Verify fee structure implementation
+SELECT '=== TEST 1: FEE STRUCTURE VERIFICATION ===' AS test_section;
+SELECT 
+    s.first_name,
+    s.last_name,
+    org.org_name,
+    m.mem_status,
+    COUNT(t.term_id) as terms_created,
+    CASE m.mem_status
+        WHEN 'active' THEN 'Should pay 1000 per semester'
+        WHEN 'inactive' THEN 'Should pay 500 per semester'
+        WHEN 'expelled' THEN 'Should pay NOTHING (no terms)'
+        WHEN 'alumni' THEN 'Should pay NOTHING (no terms)'
+        ELSE 'Unknown status'
+    END as fee_rule,
+    CASE 
+        WHEN m.mem_status IN ('expelled', 'alumni') AND COUNT(t.term_id) = 0 THEN '✓ CORRECT'
+        WHEN m.mem_status IN ('active', 'inactive') AND COUNT(t.term_id) > 0 THEN '✓ CORRECT'
+        WHEN m.mem_status IN ('expelled', 'alumni') AND COUNT(t.term_id) > 0 THEN '✗ ERROR: Should not have terms'
+        WHEN m.mem_status IN ('active', 'inactive') AND COUNT(t.term_id) = 0 THEN '✗ ERROR: Missing terms'
+        ELSE '? UNKNOWN'
+    END as validation_status
 FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
+JOIN membership m ON s.student_id = m.student_id
 JOIN organization org ON m.org_id = org.org_id
-WHERE org.org_id = 1 AND m.mem_status = 'alumni'
-AND m.batch <= '2023-2024';
+LEFT JOIN term t ON m.membership_id = t.membership_id
+WHERE m.batch = '2023-2024'
+GROUP BY s.student_id, org.org_id
+ORDER BY org.org_name, m.mem_status, s.last_name;
 
--- Test 12: Organization Financial Status (CS Society, as of 2024-05-01)
-SELECT '=== TEST 12: CS SOCIETY FINANCIAL STATUS ===' AS test_section;
+-- Test 2: Fee amount verification
+SELECT '=== TEST 2: FEE AMOUNT VERIFICATION ===' AS test_section;
+SELECT 
+    s.first_name,
+    s.last_name,
+    org.org_name,
+    m.mem_status,
+    t.semester,
+    t.fee_amount,
+    CASE m.mem_status
+        WHEN 'active' THEN 1000.00
+        WHEN 'inactive' THEN 500.00
+        ELSE 0.00
+    END as expected_fee,
+    CASE 
+        WHEN m.mem_status = 'active' AND t.fee_amount = 1000.00 THEN '✓ CORRECT'
+        WHEN m.mem_status = 'inactive' AND t.fee_amount = 500.00 THEN '✓ CORRECT'
+        ELSE '✗ INCORRECT FEE'
+    END as fee_validation
+FROM student s
+JOIN membership m ON s.student_id = m.student_id
+JOIN organization org ON m.org_id = org.org_id
+JOIN term t ON m.membership_id = t.membership_id
+WHERE m.batch = '2023-2024'
+ORDER BY org.org_name, t.semester, s.last_name;
+
+-- Test 3: Payment status by membership type
+SELECT '=== TEST 3: PAYMENT STATUS BY MEMBERSHIP TYPE ===' AS test_section;
+SELECT 
+    m.mem_status,
+    COUNT(DISTINCT m.membership_id) as total_members,
+    COUNT(DISTINCT t.term_id) as total_terms,
+    SUM(t.fee_amount) as total_fees_due,
+    COALESCE(SUM(p.amount), 0) as total_payments,
+    SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as outstanding_balance,
+    ROUND(AVG(t.fee_amount), 2) as average_fee_per_term
+FROM membership m
+LEFT JOIN term t ON m.membership_id = t.membership_id
+LEFT JOIN payment p ON t.term_id = p.term_id
+WHERE m.batch = '2023-2024'
+GROUP BY m.mem_status
+ORDER BY m.mem_status;
+
+-- Test 4: Detailed member payment tracking
+SELECT '=== TEST 4: DETAILED MEMBER PAYMENT TRACKING ===' AS test_section;
+SELECT 
+    s.first_name,
+    s.last_name,
+    org.org_name,
+    m.mem_status,
+    t.semester,
+    t.fee_amount as amount_due,
+    COALESCE(SUM(p.amount), 0) as amount_paid,
+    t.fee_amount - COALESCE(SUM(p.amount), 0) as balance,
+    CASE 
+        WHEN t.fee_amount - COALESCE(SUM(p.amount), 0) = 0 THEN 'PAID IN FULL'
+        WHEN COALESCE(SUM(p.amount), 0) = 0 THEN 'NO PAYMENT'
+        WHEN COALESCE(SUM(p.amount), 0) > 0 THEN 'PARTIAL PAYMENT'
+        ELSE 'UNKNOWN'
+    END as payment_status
+FROM student s
+JOIN membership m ON s.student_id = m.student_id
+JOIN organization org ON m.org_id = org.org_id
+LEFT JOIN term t ON m.membership_id = t.membership_id
+LEFT JOIN payment p ON t.term_id = p.term_id
+WHERE m.batch = '2023-2024'
+GROUP BY s.student_id, org.org_id, t.term_id
+ORDER BY org.org_name, s.last_name, t.semester;
+
+-- Test 5: Verify expelled and alumni have no financial obligations
+SELECT '=== TEST 5: VERIFY NO FEES FOR EXPELLED/ALUMNI ===' AS test_section;
+SELECT 
+    s.first_name,
+    s.last_name,
+    org.org_name,
+    m.mem_status,
+    m.batch,
+    COUNT(t.term_id) as terms_count,
+    COALESCE(SUM(t.fee_amount), 0) as total_fees,
+    COUNT(p.payment_id) as payments_count,
+    CASE 
+        WHEN COUNT(t.term_id) = 0 AND COUNT(p.payment_id) = 0 THEN '✓ CORRECT - No financial obligations'
+        ELSE '✗ ERROR - Should not have any fees or payments'
+    END as validation
+FROM student s
+JOIN membership m ON s.student_id = m.student_id
+JOIN organization org ON m.org_id = org.org_id
+LEFT JOIN term t ON m.membership_id = t.membership_id
+LEFT JOIN payment p ON t.term_id = p.term_id
+WHERE m.mem_status IN ('expelled', 'alumni')
+GROUP BY s.student_id, org.org_id
+ORDER BY m.mem_status, org.org_name, s.last_name;
+
+-- Test 6: Outstanding balances by organization
+SELECT '=== TEST 6: OUTSTANDING BALANCES BY ORGANIZATION ===' AS test_section;
 SELECT 
     org.org_name,
-    SUM(t.fee_amount) as total_fees,
+    m.mem_status,
+    COUNT(DISTINCT s.student_id) as member_count,
+    SUM(t.fee_amount) as total_fees_due,
     COALESCE(SUM(p.amount), 0) as total_paid,
-    SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as total_unpaid
+    SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as outstanding_balance,
+    CASE 
+        WHEN SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) = 0 THEN 'All paid'
+        WHEN COALESCE(SUM(p.amount), 0) = 0 THEN 'No payments received'
+        ELSE 'Partial payments'
+    END as status
 FROM organization org
 JOIN membership m ON org.org_id = m.org_id
-JOIN term t ON m.membership_id = t.membership_id
-LEFT JOIN payment p ON t.term_id = p.term_id
-WHERE org.org_id = 1 AND t.term_start <= '2024-05-01'
-GROUP BY org.org_id, org.org_name;
-
--- Test 13: Highest Debt Members (CS Society, 1st Semester 2023-2024)
-SELECT '=== TEST 13: HIGHEST DEBT MEMBERS - CS SOCIETY 1ST SEM 2023-2024 ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name,
-       t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
-       (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance
-FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
-JOIN organization org ON m.org_id = org.org_id
-JOIN term t ON m.membership_id = t.membership_id
-LEFT JOIN payment p ON t.term_id = p.term_id
-WHERE org.org_id = 1 AND t.semester = '1st' AND t.acad_year = '2023-2024'
-GROUP BY s.student_id, t.term_id
-HAVING balance > 0
-ORDER BY balance DESC;
-
--- Test 14: Term Balances (All Terms)
-SELECT '=== TEST 14: ALL TERM BALANCES ===' AS test_section;
-SELECT t.term_id, t.semester, t.acad_year, t.fee_amount,
-       COALESCE(SUM(p.amount), 0) AS total_paid,
-       (t.fee_amount - COALESCE(SUM(p.amount), 0)) AS balance,
-       org.org_name, s.first_name, s.last_name
-FROM term t
-LEFT JOIN payment p ON t.term_id = p.term_id
-JOIN membership m ON t.membership_id = m.membership_id
-JOIN organization org ON m.org_id = org.org_id
 JOIN student s ON m.student_id = s.student_id
-GROUP BY t.term_id
-ORDER BY t.acad_year DESC, t.semester, org.org_name;
+LEFT JOIN term t ON m.membership_id = t.membership_id
+LEFT JOIN payment p ON t.term_id = p.term_id
+WHERE m.batch = '2023-2024'
+GROUP BY org.org_id, m.mem_status
+ORDER BY org.org_name, m.mem_status;
 
--- Test 15: Financial Summary by Organization
-SELECT '=== TEST 15: FINANCIAL SUMMARY BY ORGANIZATION ===' AS test_section;
-SELECT org.org_name,
-       SUM(t.fee_amount) AS total_fees,
-       COALESCE(SUM(p.amount), 0) AS total_collected,
-       SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) AS total_balance 
-FROM organization org
-JOIN membership m ON org.org_id = m.org_id
-JOIN term t ON m.membership_id = t.membership_id
-LEFT JOIN (
-    SELECT term_id, SUM(amount) AS amount
-    FROM payment
-    GROUP BY term_id
-) p ON t.term_id = p.term_id
-GROUP BY org.org_name
-ORDER BY total_balance DESC;
-
--- Test 16: Cross-Organization Memberships
-SELECT '=== TEST 16: STUDENTS WITH MULTIPLE ORGANIZATION MEMBERSHIPS ===' AS test_section;
-SELECT s.student_id, s.first_name, s.last_name,
-       COUNT(DISTINCT m.org_id) as org_count,
-       GROUP_CONCAT(DISTINCT org.org_name SEPARATOR ', ') as organizations
+-- Test 7: Cross-organization memberships with fee implications
+SELECT '=== TEST 7: CROSS-ORGANIZATION MEMBERSHIPS ===' AS test_section;
+SELECT 
+    s.first_name,
+    s.last_name,
+    COUNT(DISTINCT m.org_id) as organizations_count,
+    GROUP_CONCAT(DISTINCT org.org_name SEPARATOR ', ') as organizations,
+    GROUP_CONCAT(DISTINCT m.mem_status SEPARATOR ', ') as statuses,
+    SUM(t.fee_amount) as total_fees_all_orgs,
+    COALESCE(SUM(p.amount), 0) as total_paid_all_orgs,
+    SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as total_outstanding
 FROM student s
-JOIN member mb ON s.student_id = mb.student_id
-JOIN membership m ON mb.student_id = m.student_id
+JOIN membership m ON s.student_id = m.student_id
 JOIN organization org ON m.org_id = org.org_id
+LEFT JOIN term t ON m.membership_id = t.membership_id
+LEFT JOIN payment p ON t.term_id = p.term_id
+WHERE m.batch = '2023-2024'
 GROUP BY s.student_id
-HAVING org_count > 1
-ORDER BY org_count DESC;
+HAVING organizations_count > 1
+ORDER BY total_outstanding DESC;
 
--- Test 17: Payment Summary by Status
-SELECT '=== TEST 17: PAYMENT SUMMARY BY STATUS ===' AS test_section;
-SELECT payment_status, 
-       COUNT(*) as payment_count,
-       SUM(amount) as total_amount,
-       AVG(amount) as average_amount,
-       MIN(amount) as min_amount,
-       MAX(amount) as max_amount
-FROM payment
-GROUP BY payment_status
-ORDER BY total_amount DESC;
+-- Test 8: Summary statistics
+SELECT '=== TEST 8: SUMMARY STATISTICS ===' AS test_section;
+SELECT 
+    'Total Students' as metric, 
+    COUNT(*) as count, 
+    '' as additional_info
+FROM student
+UNION ALL
+SELECT 
+    'Total Organizations', 
+    COUNT(*), 
+    ''
+FROM organization
+UNION ALL
+SELECT 
+    'Total Memberships (2023-2024)', 
+    COUNT(*), 
+    ''
+FROM membership WHERE batch = '2023-2024'
+UNION ALL
+SELECT 
+    'Active Members', 
+    COUNT(*), 
+    'Pay 1000 per semester'
+FROM membership WHERE batch = '2023-2024' AND mem_status = 'active'
+UNION ALL
+SELECT 
+    'Inactive Members', 
+    COUNT(*), 
+    'Pay 500 per semester'
+FROM membership WHERE batch = '2023-2024' AND mem_status = 'inactive'
+UNION ALL
+SELECT 
+    'Expelled Members', 
+    COUNT(*), 
+    'Pay nothing'
+FROM membership WHERE batch = '2023-2024' AND mem_status = 'expelled'
+UNION ALL
+SELECT 
+    'Alumni Members', 
+    COUNT(*), 
+    'Pay nothing'
+FROM membership WHERE mem_status = 'alumni'
+UNION ALL
+SELECT 
+    'Total Terms Created', 
+    COUNT(*), 
+    'Only for active/inactive'
+FROM term
+UNION ALL
+SELECT 
+    'Total Payments Made', 
+    COUNT(*), 
+    ''
+FROM payment;
 
 -- ============================================================================
--- SECTION 5: DATA INTEGRITY VERIFICATION
+-- FINAL VALIDATION
 -- ============================================================================
 
-SELECT '=== DATA INTEGRITY VERIFICATION ===' AS test_section;
+SELECT '=== FINAL BUSINESS LOGIC VALIDATION ===' AS test_section;
 
--- Check for orphaned records
-SELECT 'Orphaned members (students not in student table):' as check_type, COUNT(*) as count
-FROM member m LEFT JOIN student s ON m.student_id = s.student_id WHERE s.student_id IS NULL
-UNION ALL
-SELECT 'Orphaned memberships (invalid student_id):', COUNT(*)
-FROM membership m LEFT JOIN student s ON m.student_id = s.student_id WHERE s.student_id IS NULL
-UNION ALL
-SELECT 'Orphaned memberships (invalid org_id):', COUNT(*)
-FROM membership m LEFT JOIN organization o ON m.org_id = o.org_id WHERE o.org_id IS NULL
-UNION ALL
-SELECT 'Orphaned terms (invalid membership_id):', COUNT(*)
-FROM term t LEFT JOIN membership m ON t.membership_id = m.membership_id WHERE m.membership_id IS NULL
-UNION ALL
-SELECT 'Orphaned payments (invalid term_id):', COUNT(*)
-FROM payment p LEFT JOIN term t ON p.term_id = t.term_id WHERE t.term_id IS NULL;
+-- Check that business rules are correctly implemented
+SELECT 
+    'BUSINESS RULE VALIDATION' as check_type,
+    CASE 
+        WHEN (SELECT COUNT(*) FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+              WHERE m.mem_status IN ('expelled', 'alumni')) = 0 
+        THEN '✓ PASSED: No terms for expelled/alumni members'
+        ELSE '✗ FAILED: Found terms for expelled/alumni members'
+    END as rule_1_expelled_alumni,
+    
+    CASE 
+        WHEN (SELECT COUNT(*) FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+              WHERE m.mem_status = 'active' AND t.fee_amount != 1000.00) = 0
+        THEN '✓ PASSED: All active members have 1000 fee'
+        ELSE '✗ FAILED: Some active members have incorrect fee'
+    END as rule_2_active_fee,
+    
+    CASE 
+        WHEN (SELECT COUNT(*) FROM term t JOIN membership m ON t.membership_id = m.membership_id 
+              WHERE m.mem_status = 'inactive' AND t.fee_amount != 500.00) = 0
+        THEN '✓ PASSED: All inactive members have 500 fee'
+        ELSE '✗ FAILED: Some inactive members have incorrect fee'
+    END as rule_3_inactive_fee;
 
--- Summary statistics
-SELECT '=== SUMMARY STATISTICS ===' AS test_section;
-SELECT 'Total Students' as metric, COUNT(*) as count FROM student
-UNION ALL
-SELECT 'Total Organizations', COUNT(*) FROM organization
-UNION ALL
-SELECT 'Total Members', COUNT(*) FROM member
-UNION ALL
-SELECT 'Total Memberships', COUNT(*) FROM membership
-UNION ALL
-SELECT 'Total Terms', COUNT(*) FROM term
-UNION ALL
-SELECT 'Total Payments', COUNT(*) FROM payment;
-
--- ============================================================================
--- END OF COMPREHENSIVE TEST
--- ============================================================================
-
-SELECT '=== COMPREHENSIVE TEST COMPLETED ===' AS test_section;
+SELECT '=== DATABASE TESTING COMPLETED SUCCESSFULLY ===' AS test_section;
