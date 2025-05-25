@@ -47,7 +47,7 @@ def create_database_schema():
             CREATE TABLE IF NOT EXISTS membership (
                 membership_id INT AUTO_INCREMENT PRIMARY KEY,
                 batch VARCHAR(20),
-                mem_status VARCHAR(20) DEFAULT 'active',
+                mem_status VARCHAR(50) DEFAULT 'active',
                 committee VARCHAR(50),
                 org_id INT,
                 student_id INT,

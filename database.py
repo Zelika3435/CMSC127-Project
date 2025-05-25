@@ -108,86 +108,48 @@ class DatabaseManager:
     # MEMBERSHIP OPERATIONS
     def add_member(self, student_id: int) -> bool:
         # Add student to member table
-        query = "INSERT INTO member (student_id) VALUES (?)"
+        query = """
+        INSERT INTO member (student_id) 
+        VALUES (?) 
+        ON DUPLICATE KEY UPDATE student_id = student_id
+        """
         return self.execute_update(query, (student_id,))
     
     def add_membership(self, membership: Membership) -> bool:
-        # Add a new membership record
-        query = """
-        INSERT INTO membership (batch, mem_status, committee, org_id)
-        VALUES (?, ?, ?, ?)
+        # First check if membership already exists
+        check_query = """
+        SELECT membership_id FROM membership 
+        WHERE student_id = ? AND org_id = ?
         """
-        if not self.execute_update(query, (
-            membership.batch, membership.mem_status, membership.committee,
-            membership.org_id
-        )):
-            return False
-            
-        # Get the newly created membership_id
-        query = "SELECT LAST_INSERT_ID()"
-        result = self.execute_query(query)
-        if not result:
-            return False
-            
-        membership_id = result[0][0]
+        existing = self.execute_query(check_query, (membership.student_id, membership.org_id))
         
-        # Add the has_membership relationship
-        query = """
-        INSERT INTO has_membership (student_id, membership_id)
-        VALUES (?, ?)
+        if existing:
+            # Membership already exists, update it instead
+            update_query = """
+            UPDATE membership 
+            SET batch = ?, mem_status = ?, committee = ?
+            WHERE student_id = ? AND org_id = ?
+            """
+            return self.execute_update(update_query, (
+                membership.batch, membership.mem_status, membership.committee,
+                membership.student_id, membership.org_id
+            ))
+        
+        # Add new membership record
+        insert_query = """
+        INSERT INTO membership (batch, mem_status, committee, org_id, student_id)
+        VALUES (?, ?, ?, ?, ?)
         """
-        return self.execute_update(query, (membership.student_id, membership_id))
+        return self.execute_update(insert_query, (
+            membership.batch, membership.mem_status, membership.committee,
+            membership.org_id, membership.student_id
+        ))
     
     def update_membership_status(self, membership_id: int, status: str) -> bool:
-        """Update membership status and handle fee adjustments"""
-        # Get current membership info
-        query = """
-        SELECT m.membership_id, m.student_id, m.org_id, m.batch
-        FROM membership m
-        WHERE m.membership_id = ?
-        """
-        result = self.execute_query(query, (membership_id,))
-        if not result:
-            return False
-        
-        membership_id, student_id, org_id, batch = result[0]
-        
+        """Update membership status"""
         # Update status
-        query = "UPDATE membership SET mem_status=? WHERE membership_id=?"
-        if not self.execute_update(query, (status, membership_id)):
-            return False
-        
-        # If becoming inactive, create a term with inactive fee
-        if status == 'inactive':
-            from datetime import date, timedelta
-            current_date = date.today()
-            
-            # Determine current semester and academic year
-            month = current_date.month
-            if month >= 6 and month <= 10:
-                semester = "1st"
-                acad_year = f"{current_date.year}-{current_date.year + 1}"
-            elif month >= 11 or month <= 3:
-                semester = "2nd"
-                acad_year = f"{current_date.year}-{current_date.year + 1}"
-            else:
-                semester = "Summer"
-                acad_year = f"{current_date.year}-{current_date.year + 1}"
-            
-            # Create term with inactive fee
-            term = Term(
-                term_id=None,
-                semester=semester,
-                term_start=current_date,
-                term_end=current_date + timedelta(days=180),
-                acad_year=acad_year,
-                fee_amount=500.0,  # Inactive fee
-                fee_due=current_date + timedelta(days=30),
-                membership_id=membership_id
-            )
-            self.add_term(term)
-        
-        return True
+        query = "UPDATE membership SET mem_status = ? WHERE membership_id = ?"
+        return self.execute_update(query, (status, membership_id))
     
     def get_members_by_organization(self, org_id: int = None, semester: str = None, acad_year: str = None) -> List[dict]:
         # Get all members with their membership status and organization
@@ -213,13 +175,12 @@ class DatabaseManager:
         )
         SELECT s.student_id, s.first_name, s.last_name, 
                m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
-               s.gender, s.degree_program,
+               s.gender, s.degree_program, s.standing,
                lt.semester as latest_semester,
                lt.acad_year as latest_acad_year,
                lt.term_end as latest_term_end
         FROM student s
-        JOIN has_membership hm ON s.student_id = hm.student_id
-        JOIN membership m ON hm.membership_id = m.membership_id
+        JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
         LEFT JOIN latest_terms lt ON m.membership_id = lt.membership_id AND lt.rn = 1
         WHERE org.org_id = ? {filter_main}
@@ -232,9 +193,9 @@ class DatabaseManager:
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
                     'status': row[3], 'batch': row[4], 'committee': row[5],
                     'organization': row[6], 'membership_id': row[7],
-                    'gender': row[8], 'degree_program': row[9],
-                    'latest_semester': row[10], 'latest_acad_year': row[11],
-                    'latest_term_end': row[12]
+                    'gender': row[8], 'degree_program': row[9], 'standing': row[10],
+                    'latest_semester': row[11], 'latest_acad_year': row[12],
+                    'latest_term_end': row[13]
                 }
                 for row in results
             ]
@@ -251,8 +212,7 @@ class DatabaseManager:
                (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance,
                m.mem_status, t.fee_due
         FROM student s
-        JOIN has_membership hm ON s.student_id = hm.student_id
-        JOIN membership m ON hm.membership_id = m.membership_id
+        JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
         JOIN term t ON m.membership_id = t.membership_id
         LEFT JOIN payment p ON t.term_id = p.term_id
@@ -281,8 +241,7 @@ class DatabaseManager:
                t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
                (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance
         FROM student s
-        JOIN member mb ON s.student_id = mb.student_id
-        JOIN membership m ON mb.student_id = m.student_id
+        JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
         JOIN term t ON m.membership_id = t.membership_id
         LEFT JOIN payment p ON t.term_id = p.term_id
@@ -821,8 +780,7 @@ class DatabaseManager:
         query = """
         SELECT m.mem_status
         FROM membership m
-        JOIN has_membership hm ON m.membership_id = hm.membership_id
-        WHERE hm.student_id = ? AND m.org_id = ?
+        WHERE m.student_id = ? AND m.org_id = ?
         """
         result = self.execute_query(query, (student_id, org_id))
         return result[0][0] if result else None
@@ -833,8 +791,7 @@ class DatabaseManager:
         SELECT s.student_id, s.first_name, s.last_name, s.gender, s.degree_program,
                m.mem_status, m.batch, m.committee, org.org_name
         FROM student s
-        JOIN has_membership hm ON s.student_id = hm.student_id
-        JOIN membership m ON hm.membership_id = m.membership_id
+        JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
         WHERE s.student_id = ? AND org.org_id = ?
         """
@@ -856,7 +813,7 @@ class DatabaseManager:
 
     def update_membership_committee(self, membership_id: int, committee: str) -> bool:
         """Update the committee/role for a membership"""
-        query = "UPDATE membership SET committee=? WHERE membership_id=?"
+        query = "UPDATE membership SET committee = ? WHERE membership_id = ?"
         return self.execute_update(query, (committee, membership_id))
 
     def delete_membership(self, membership_id: int) -> bool:

@@ -22,9 +22,10 @@ class MainWindow(tk.Frame):
         
         # Create main notebook (tabs)
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Create tabs
+        self.create_student_management_tab()
         self.create_membership_tab()
         self.create_financial_tab()
         self.create_reports_tab()
@@ -57,13 +58,16 @@ class MainWindow(tk.Frame):
         membership_frame = ttk.Frame(self.notebook)
         self.notebook.add(membership_frame, text="Membership Management")
         
-        # Only Organization filter at the top
+        # Filter frame
         filter_frame = ttk.Frame(membership_frame)
         filter_frame.pack(fill=tk.X, pady=5)
         ttk.Label(filter_frame, text="Organization:").pack(side=tk.LEFT)
         self.org_combo = ttk.Combobox(filter_frame, state="readonly")
         self.org_combo.pack(side=tk.LEFT, padx=5)
         self.org_combo.bind('<<ComboboxSelected>>', self.load_members)
+        
+        # Add Organization button
+        ttk.Button(filter_frame, text="Add Organization", command=self.add_organization).pack(side=tk.RIGHT, padx=5)
         
         # Create subtabs within membership tab
         membership_notebook = ttk.Notebook(membership_frame)
@@ -218,6 +222,28 @@ class MainWindow(tk.Frame):
         
         # Load initial data
         self.load_report_filters()
+    
+    def create_student_management_tab(self):
+        """Create the student management tab"""
+        student_frame = ttk.Frame(self.notebook)
+        self.notebook.add(student_frame, text="Student Management")
+        
+        # Buttons frame
+        buttons_frame = ttk.Frame(student_frame)
+        buttons_frame.pack(pady=10)
+        
+        ttk.Button(buttons_frame, text="Add Student", command=self.add_student).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Edit Student", command=self.edit_student).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Delete Student", command=self.delete_student).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Refresh", command=self.refresh_students).pack(side=tk.LEFT, padx=5)
+        
+        # Students table
+        columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing']
+        self.students_table = DataTable(student_frame, columns)
+        self.students_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Load initial data
+        self.refresh_students()
     
     def create_terms(self):
         """Add a member to the selected term (semester and academic year)"""
@@ -558,13 +584,16 @@ class MainWindow(tk.Frame):
             messagebox.showwarning("Warning", "Please select a member to edit")
             return
         
+        # Extract just the status without any additional text
+        current_status = selected['Status'].split(' (')[0] if ' (' in selected['Status'] else selected['Status']
+        
         fields = [
             {'name': 'committee', 'label': 'Role', 'type': 'combobox', 
              'values': ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer'],
              'default': selected['Committee']},
             {'name': 'mem_status', 'label': 'Status', 'type': 'combobox',
              'values': ['active', 'inactive', 'suspended', 'expelled', 'alumni'],
-             'default': selected['Status']}
+             'default': current_status}
         ]
         
         dialog = FormDialog(self, "Edit Member", fields)
@@ -576,7 +605,6 @@ class MainWindow(tk.Frame):
                 # Update both committee and status
                 if not self.db.update_membership_status(membership_id, dialog.result['mem_status']):
                     raise Exception("Failed to update membership status")
-                # Add a method to update committee if needed
                 if not self.db.update_membership_committee(membership_id, dialog.result['committee']):
                     raise Exception("Failed to update committee")
                 self.load_members()
@@ -999,6 +1027,130 @@ class MainWindow(tk.Frame):
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update term dates: {str(e)}")
+    
+    def add_organization(self):
+        """Add a new organization"""
+        fields = [
+            {'name': 'org_name', 'label': 'Organization Name:', 'type': 'entry'}
+        ]
+        
+        dialog = FormDialog(self, "Add Organization", fields)
+        self.wait_window(dialog)
+        
+        if dialog.result and dialog.result['org_name']:
+            try:
+                if self.db.add_organization(dialog.result['org_name']):
+                    messagebox.showinfo("Success", "Organization added successfully!")
+                    # Refresh organization lists
+                    self.load_organizations()
+                    self.load_organizations_financial()
+                    self.load_report_filters()
+                else:
+                    messagebox.showerror("Error", "Failed to add organization!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to add organization: {str(e)}")
+    
+    def add_student(self):
+        """Add a new student"""
+        fields = [
+            {'name': 'first_name', 'label': 'First Name:', 'type': 'entry'},
+            {'name': 'last_name', 'label': 'Last Name:', 'type': 'entry'},
+            {'name': 'gender', 'label': 'Gender:', 'type': 'combobox', 'values': ['Male', 'Female', 'Other']},
+            {'name': 'degree_program', 'label': 'Degree Program:', 'type': 'entry'},
+            {'name': 'standing', 'label': 'Standing:', 'type': 'combobox', 'values': ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']}
+        ]
+        
+        dialog = FormDialog(self, "Add Student", fields)
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            try:
+                student = Student(
+                    student_id=None,
+                    first_name=dialog.result['first_name'],
+                    last_name=dialog.result['last_name'],
+                    gender=dialog.result['gender'],
+                    degree_program=dialog.result['degree_program'],
+                    standing=dialog.result['standing']
+                )
+                
+                if self.db.add_student(student):
+                    messagebox.showinfo("Success", "Student added successfully!")
+                    self.refresh_students()
+                else:
+                    messagebox.showerror("Error", "Failed to add student!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to add student: {str(e)}")
+    
+    def edit_student(self):
+        """Edit selected student"""
+        selected = self.students_table.get_selected_item()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a student to edit")
+            return
+        
+        fields = [
+            {'name': 'first_name', 'label': 'First Name:', 'type': 'entry', 'default': selected['First Name']},
+            {'name': 'last_name', 'label': 'Last Name:', 'type': 'entry', 'default': selected['Last Name']},
+            {'name': 'gender', 'label': 'Gender:', 'type': 'combobox', 'values': ['Male', 'Female', 'Other'], 'default': selected['Gender']},
+            {'name': 'degree_program', 'label': 'Degree Program:', 'type': 'entry', 'default': selected['Degree Program']},
+            {'name': 'standing', 'label': 'Standing:', 'type': 'combobox', 'values': ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'], 'default': selected['Standing']}
+        ]
+        
+        dialog = FormDialog(self, "Edit Student", fields)
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            try:
+                student = Student(
+                    student_id=int(selected['Student ID']),
+                    first_name=dialog.result['first_name'],
+                    last_name=dialog.result['last_name'],
+                    gender=dialog.result['gender'],
+                    degree_program=dialog.result['degree_program'],
+                    standing=dialog.result['standing']
+                )
+                
+                if self.db.update_student(student):
+                    messagebox.showinfo("Success", "Student updated successfully!")
+                    self.refresh_students()
+                else:
+                    messagebox.showerror("Error", "Failed to update student!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update student: {str(e)}")
+    
+    def delete_student(self):
+        """Delete selected student"""
+        selected = self.students_table.get_selected_item()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a student to delete")
+            return
+        
+        if messagebox.askyesno("Confirm", f"Delete student {selected['First Name']} {selected['Last Name']}?"):
+            try:
+                if self.db.delete_student(int(selected['Student ID'])):
+                    messagebox.showinfo("Success", "Student deleted successfully!")
+                    self.refresh_students()
+                else:
+                    messagebox.showerror("Error", "Failed to delete student!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete student: {str(e)}")
+    
+    def refresh_students(self):
+        """Refresh the students table"""
+        students = self.db.get_all_students()
+        student_data = [
+            {
+                'Student ID': s.student_id,
+                'First Name': s.first_name,
+                'Last Name': s.last_name,
+                'Gender': s.gender,
+                'Degree Program': s.degree_program,
+                'Standing': s.standing
+            }
+            for s in students
+        ]
+        self.students_table.insert_data(student_data)
     
     def __del__(self):
         if hasattr(self, 'db'):
