@@ -39,28 +39,35 @@ CREATE TABLE membership (
     membership_id INT PRIMARY KEY AUTO_INCREMENT,
     batch VARCHAR(20),
     mem_status VARCHAR(20),
-    committee VARCHAR(50),
     org_id INT,
+    FOREIGN KEY (org_id) REFERENCES organization(org_id) ON DELETE CASCADE
+);
+
+CREATE TABLE has_membership (
     student_id INT,
-    FOREIGN KEY (org_id) REFERENCES organization(org_id) ON DELETE CASCADE,
-    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE
+    membership_id INT,
+    PRIMARY KEY (student_id, membership_id),
+    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
 );
 
 CREATE TABLE term (
     term_id INT PRIMARY KEY AUTO_INCREMENT,
     semester VARCHAR(20),
+    payment_status VARCHAR(20),
+    role VARCHAR(50),
     term_start DATE,
     term_end DATE,
     acad_year VARCHAR(20),
     fee_amount DECIMAL(10,2),
     fee_due DATE,
+    balance DECIMAL(10,2),
     membership_id INT,
     FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
 );
 
 CREATE TABLE payment (
     payment_id INT PRIMARY KEY AUTO_INCREMENT,
-    payment_status VARCHAR(20),
     amount DECIMAL(10,2),
     payment_date DATE,
     term_id INT,
@@ -132,91 +139,116 @@ SELECT student_id FROM student;
 -- SECTION 4: INSERT MEMBERSHIPS WITH VARIOUS STATUSES
 -- ============================================================================
 
-INSERT INTO membership (batch, mem_status, committee, org_id, student_id) VALUES 
+-- First insert memberships
+INSERT INTO membership (batch, mem_status, org_id) VALUES 
+-- Computer Science Society
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'active', 1),
+('2023-2024', 'inactive', 1),
+('2023-2024', 'inactive', 1),
+('2023-2024', 'expelled', 1),
+('2022-2023', 'alumni', 1),
+('2021-2022', 'alumni', 1),
 
--- ===== COMPUTER SCIENCE SOCIETY (org_id = 1) =====
--- ACTIVE MEMBERS (2023-2024) - These pay 1000 per semester
-('2023-2024', 'active', 'President', 1, 1),      -- John Doe
-('2023-2024', 'active', 'Vice President', 1, 2), -- Jane Smith
-('2023-2024', 'active', 'Secretary', 1, 3),      -- Mike Johnson
-('2023-2024', 'active', 'Treasurer', 1, 4),      -- Sarah Williams
-('2023-2024', 'active', 'Member', 1, 5),         -- David Brown
-('2023-2024', 'active', 'Member', 1, 6),         -- Emily Davis
-('2023-2024', 'active', 'Member', 1, 25),        -- Daniel Hall
-('2023-2024', 'active', 'Member', 1, 26),        -- Nancy Allen
+-- Mathematics Club
+('2023-2024', 'active', 2),
+('2023-2024', 'active', 2),
+('2023-2024', 'active', 2),
+('2023-2024', 'active', 2),
+('2023-2024', 'active', 2),
+('2023-2024', 'active', 2),
+('2023-2024', 'inactive', 2),
+('2020-2021', 'alumni', 2),
 
--- INACTIVE MEMBERS (2023-2024) - These pay 500 per semester during inactive period
-('2023-2024', 'inactive', 'Member', 1, 7),       -- James Wilson (became inactive in 2023-2024)
-('2023-2024', 'inactive', 'Member', 1, 8),       -- Lisa Moore (became inactive in 2023-2024)
+-- Engineering Society
+('2023-2024', 'active', 3),
+('2023-2024', 'active', 3),
+('2023-2024', 'active', 3),
+('2023-2024', 'active', 3),
+('2023-2024', 'active', 3),
+('2023-2024', 'active', 3),
+('2023-2024', 'inactive', 3),
+('2023-2024', 'expelled', 3),
+('2019-2020', 'alumni', 3),
 
--- EXPELLED MEMBERS - These pay NOTHING
-('2023-2024', 'expelled', 'Member', 1, 27),      -- Matthew Young (expelled during 2023-2024)
+-- Student Council
+('2023-2024', 'active', 6),
+('2023-2024', 'active', 6),
+('2023-2024', 'active', 6),
 
--- ALUMNI MEMBERS - These pay NOTHING (graduated/left)
-('2022-2023', 'alumni', 'President', 1, 21),     -- Thomas Rodriguez (was president, now alumni)
-('2021-2022', 'alumni', 'Member', 1, 22),        -- Dorothy Lewis (graduated earlier)
+-- Debate Club
+('2023-2024', 'active', 4),
+('2023-2024', 'active', 4),
+('2023-2024', 'inactive', 4),
 
--- ===== MATHEMATICS CLUB (org_id = 2) =====
--- ACTIVE MEMBERS (2023-2024)
-('2023-2024', 'active', 'President', 2, 9),      -- Robert Taylor
-('2023-2024', 'active', 'Vice President', 2, 10), -- Mary Anderson
-('2023-2024', 'active', 'Secretary', 2, 11),     -- William Thomas
-('2023-2024', 'active', 'Treasurer', 2, 12),     -- Patricia Jackson
-('2023-2024', 'active', 'Member', 2, 13),        -- Christopher White
-('2023-2024', 'active', 'Member', 2, 14),        -- Jennifer Harris
+-- Photography Club
+('2023-2024', 'active', 5),
+('2023-2024', 'active', 5);
 
--- INACTIVE MEMBER (became inactive in 2023-2024)
-('2023-2024', 'inactive', 'Member', 2, 28),      -- Betty Hernandez
+-- Then create the has_membership relationships
+INSERT INTO has_membership (student_id, membership_id) VALUES
+-- Computer Science Society
+(1, 1),  -- John Doe
+(2, 2),  -- Jane Smith
+(3, 3),  -- Mike Johnson
+(4, 4),  -- Sarah Williams
+(5, 5),  -- David Brown
+(6, 6),  -- Emily Davis
+(25, 7), -- Daniel Hall
+(26, 8), -- Nancy Allen
+(7, 9),  -- James Wilson (inactive)
+(8, 10), -- Lisa Moore (inactive)
+(27, 11), -- Matthew Young (expelled)
+(21, 12), -- Thomas Rodriguez (alumni)
+(22, 13), -- Dorothy Lewis (alumni)
 
--- ALUMNI (from previous years)
-('2020-2021', 'alumni', 'Treasurer', 2, 23),     -- Charles Lee
+-- Mathematics Club
+(9, 14),  -- Robert Taylor
+(10, 15), -- Mary Anderson
+(11, 16), -- William Thomas
+(12, 17), -- Patricia Jackson
+(13, 18), -- Christopher White
+(14, 19), -- Jennifer Harris
+(28, 20), -- Betty Hernandez (inactive)
+(23, 21), -- Charles Lee (alumni)
 
--- ===== ENGINEERING SOCIETY (org_id = 3) =====
--- ACTIVE MEMBERS (2023-2024)
-('2023-2024', 'active', 'President', 3, 15),     -- Michael Martin
-('2023-2024', 'active', 'Vice President', 3, 16), -- Linda Thompson
-('2023-2024', 'active', 'Secretary', 3, 17),     -- Richard Garcia
-('2023-2024', 'active', 'Treasurer', 3, 18),     -- Barbara Martinez
-('2023-2024', 'active', 'Member', 3, 19),        -- Joseph Robinson
-('2023-2024', 'active', 'Member', 3, 20),        -- Susan Clark
+-- Engineering Society
+(15, 22), -- Michael Martin
+(16, 23), -- Linda Thompson
+(17, 24), -- Richard Garcia
+(18, 25), -- Barbara Martinez
+(19, 26), -- Joseph Robinson
+(20, 27), -- Susan Clark
+(29, 28), -- Anthony King (inactive)
+(30, 29), -- Sandra Wright (expelled)
+(24, 30), -- Helen Walker (alumni)
 
--- INACTIVE MEMBER (became inactive during 2023-2024)
-('2023-2024', 'inactive', 'Member', 3, 29),      -- Anthony King
+-- Student Council
+(1, 31),  -- John Doe
+(9, 32),  -- Robert Taylor
+(15, 33), -- Michael Martin
 
--- EXPELLED MEMBER
-('2023-2024', 'expelled', 'Member', 3, 30),      -- Sandra Wright (expelled)
+-- Debate Club
+(11, 34), -- William Thomas
+(17, 35), -- Richard Garcia
+(12, 36), -- Patricia Jackson (inactive)
 
--- ALUMNI
-('2019-2020', 'alumni', 'President', 3, 24),     -- Helen Walker
-
--- ===== STUDENT COUNCIL (org_id = 6) - Some cross-organization memberships =====
--- ACTIVE MEMBERS (these students are also in other orgs)
-('2023-2024', 'active', 'President', 6, 1),      -- John Doe (also CS Society President)
-('2023-2024', 'active', 'Vice President', 6, 9), -- Robert Taylor (also Math Club President)
-('2023-2024', 'active', 'Secretary', 6, 15),     -- Michael Martin (also Engineering President)
-
--- ===== OTHER CLUBS (smaller memberships) =====
--- DEBATE CLUB (org_id = 4)
-('2023-2024', 'active', 'President', 4, 11),     -- William Thomas
-('2023-2024', 'active', 'Member', 4, 17),        -- Richard Garcia
-('2023-2024', 'inactive', 'Member', 4, 12),      -- Patricia Jackson (inactive)
-
--- PHOTOGRAPHY CLUB (org_id = 5)
-('2023-2024', 'active', 'President', 5, 14),     -- Jennifer Harris
-('2023-2024', 'active', 'Member', 5, 18);        -- Barbara Martinez
+-- Photography Club
+(14, 37), -- Jennifer Harris
+(18, 38); -- Barbara Martinez
 
 -- ============================================================================
 -- SECTION 5: CREATE TERMS WITH PROPER FEE LOGIC
 -- ============================================================================
 
--- BUSINESS LOGIC:
--- 1. ACTIVE members pay 1000 per semester
--- 2. INACTIVE members pay 500 per semester (only during inactive periods)
--- 3. EXPELLED members pay NOTHING (no terms created)
--- 4. ALUMNI members pay NOTHING (no terms created)
-
 -- Create terms for 1st Semester 2023-2024 - ACTIVE MEMBERS
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     '1st',
     '2023-08-15',
@@ -224,13 +256,16 @@ SELECT
     '2023-2024',
     1000.00,
     '2023-09-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    1000.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'active';
 
 -- Create terms for 1st Semester 2023-2024 - INACTIVE MEMBERS
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     '1st',
     '2023-08-15',
@@ -238,13 +273,16 @@ SELECT
     '2023-2024',
     500.00,
     '2023-09-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    500.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'inactive';
 
 -- Create terms for 2nd Semester 2023-2024 - ACTIVE MEMBERS
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     '2nd',
     '2024-01-15',
@@ -252,13 +290,16 @@ SELECT
     '2023-2024',
     1000.00,
     '2024-02-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    1000.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'active';
 
 -- Create terms for 2nd Semester 2023-2024 - INACTIVE MEMBERS
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     '2nd',
     '2024-01-15',
@@ -266,13 +307,16 @@ SELECT
     '2023-2024',
     500.00,
     '2024-02-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    500.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'inactive';
 
 -- Create terms for Summer 2024 - ACTIVE MEMBERS (major orgs only)
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     'Summer',
     '2024-06-01',
@@ -280,14 +324,17 @@ SELECT
     '2023-2024',
     1000.00,
     '2024-06-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    1000.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'active'
 AND m.org_id IN (1, 2, 3);
 
 -- Create terms for Summer 2024 - INACTIVE MEMBERS (major orgs only)
-INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
+INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, payment_status, role, balance)
 SELECT 
     'Summer',
     '2024-06-01',
@@ -295,7 +342,10 @@ SELECT
     '2023-2024',
     500.00,
     '2024-06-15',
-    m.membership_id
+    m.membership_id,
+    'unpaid',
+    m.role,
+    500.00
 FROM membership m
 WHERE m.batch = '2023-2024' 
 AND m.mem_status = 'inactive'
@@ -306,89 +356,95 @@ AND m.org_id IN (1, 2, 3);
 -- ============================================================================
 
 -- SCENARIO 1: Active members who paid in full (1000.00)
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
+INSERT INTO payment (amount, payment_date, term_id)
 SELECT 
-    'completed',
     1000.00,
     '2023-09-10',
     t.term_id
 FROM term t
 JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
 WHERE m.mem_status = 'active' 
 AND t.semester = '1st' 
-AND m.student_id IN (1, 2, 9, 10, 15, 16);  -- Some active members paid full
+AND hm.student_id IN (1, 2, 9, 10, 15, 16);
 
 -- SCENARIO 2: Active members with partial payments
 -- Mike Johnson (student_id=3) - partial payment
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'partial', 600.00, '2023-09-14', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 600.00, '2023-09-14', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.student_id = 3 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE hm.student_id = 3 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- Sarah Williams (student_id=4) - first partial payment
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'partial', 400.00, '2023-09-20', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 400.00, '2023-09-20', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE hm.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- Sarah Williams (student_id=4) - second partial payment
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'partial', 300.00, '2023-10-05', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 300.00, '2023-10-05', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE hm.student_id = 4 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- David Brown (student_id=5) - late full payment
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'completed', 1000.00, '2023-09-25', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 1000.00, '2023-09-25', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.student_id = 5 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE hm.student_id = 5 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- SCENARIO 3: Inactive members who paid their reduced fee (500.00)
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
+INSERT INTO payment (amount, payment_date, term_id)
 SELECT 
-    'completed',
     500.00,
     '2023-09-12',
     t.term_id
 FROM term t
 JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
 WHERE m.mem_status = 'inactive' 
 AND t.semester = '1st' 
-AND m.student_id IN (7, 28, 29);  -- Inactive members paid their reduced fee
+AND hm.student_id IN (7, 28, 29);
 
 -- SCENARIO 4: One inactive member with partial payment
 -- Lisa Moore (inactive) - partial payment of reduced fee
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'partial', 300.00, '2023-09-18', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 300.00, '2023-09-18', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.student_id = 8 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE hm.student_id = 8 AND t.semester = '1st' AND t.acad_year = '2023-2024' LIMIT 1;
 
 -- SCENARIO 5: Second semester payments
 -- Some active members paid for 2nd semester
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
+INSERT INTO payment (amount, payment_date, term_id)
 SELECT 
-    'completed',
     1000.00,
     '2024-02-08',
     t.term_id
 FROM term t
 JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
 WHERE m.mem_status = 'active' 
 AND t.semester = '2nd' 
-AND m.student_id IN (1, 9, 15);  -- Presidents paid for 2nd semester
+AND hm.student_id IN (1, 9, 15);
 
 -- Some inactive members paid reduced fee for 2nd semester
 -- James Wilson paid 2nd semester inactive fee
-INSERT INTO payment (payment_status, amount, payment_date, term_id)
-SELECT 'completed', 500.00, '2024-02-10', t.term_id 
+INSERT INTO payment (amount, payment_date, term_id)
+SELECT 500.00, '2024-02-10', t.term_id 
 FROM term t 
-JOIN membership m ON t.membership_id = m.membership_id 
-WHERE m.mem_status = 'inactive' AND t.semester = '2nd' AND m.student_id = 7 LIMIT 1;
+JOIN membership m ON t.membership_id = m.membership_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+WHERE m.mem_status = 'inactive' AND t.semester = '2nd' AND hm.student_id = 7 LIMIT 1;
 
 -- ============================================================================
 -- SECTION 7: COMPREHENSIVE TESTING QUERIES
@@ -417,7 +473,8 @@ SELECT
         ELSE '? UNKNOWN'
     END as validation_status
 FROM student s
-JOIN membership m ON s.student_id = m.student_id
+JOIN has_membership hm ON s.student_id = hm.student_id
+JOIN membership m ON hm.membership_id = m.membership_id
 JOIN organization org ON m.org_id = org.org_id
 LEFT JOIN term t ON m.membership_id = t.membership_id
 WHERE m.batch = '2023-2024'
@@ -444,7 +501,8 @@ SELECT
         ELSE '✗ INCORRECT FEE'
     END as fee_validation
 FROM student s
-JOIN membership m ON s.student_id = m.student_id
+JOIN has_membership hm ON s.student_id = hm.student_id
+JOIN membership m ON hm.membership_id = m.membership_id
 JOIN organization org ON m.org_id = org.org_id
 JOIN term t ON m.membership_id = t.membership_id
 WHERE m.batch = '2023-2024'
@@ -485,7 +543,8 @@ SELECT
         ELSE 'UNKNOWN'
     END as payment_status
 FROM student s
-JOIN membership m ON s.student_id = m.student_id
+JOIN has_membership hm ON s.student_id = hm.student_id
+JOIN membership m ON hm.membership_id = m.membership_id
 JOIN organization org ON m.org_id = org.org_id
 LEFT JOIN term t ON m.membership_id = t.membership_id
 LEFT JOIN payment p ON t.term_id = p.term_id
@@ -509,7 +568,8 @@ SELECT
         ELSE '✗ ERROR - Should not have any fees or payments'
     END as validation
 FROM student s
-JOIN membership m ON s.student_id = m.student_id
+JOIN has_membership hm ON s.student_id = hm.student_id
+JOIN membership m ON hm.membership_id = m.membership_id
 JOIN organization org ON m.org_id = org.org_id
 LEFT JOIN term t ON m.membership_id = t.membership_id
 LEFT JOIN payment p ON t.term_id = p.term_id
@@ -533,7 +593,8 @@ SELECT
     END as status
 FROM organization org
 JOIN membership m ON org.org_id = m.org_id
-JOIN student s ON m.student_id = s.student_id
+JOIN has_membership hm ON m.membership_id = hm.membership_id
+JOIN student s ON hm.student_id = s.student_id
 LEFT JOIN term t ON m.membership_id = t.membership_id
 LEFT JOIN payment p ON t.term_id = p.term_id
 WHERE m.batch = '2023-2024'
@@ -552,7 +613,8 @@ SELECT
     COALESCE(SUM(p.amount), 0) as total_paid_all_orgs,
     SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as total_outstanding
 FROM student s
-JOIN membership m ON s.student_id = m.student_id
+JOIN has_membership hm ON s.student_id = hm.student_id
+JOIN membership m ON hm.membership_id = m.membership_id
 JOIN organization org ON m.org_id = org.org_id
 LEFT JOIN term t ON m.membership_id = t.membership_id
 LEFT JOIN payment p ON t.term_id = p.term_id

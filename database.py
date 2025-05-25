@@ -2,6 +2,7 @@ import mariadb
 from typing import List, Optional, Tuple
 from config import DatabaseConfig
 from models import Student, Organization, Member, Membership, Term, Payment
+from datetime import date
 
 class DatabaseManager:
     # Handle all database operations
@@ -113,13 +114,29 @@ class DatabaseManager:
     def add_membership(self, membership: Membership) -> bool:
         # Add a new membership record
         query = """
-        INSERT INTO membership (batch, mem_status, committee, org_id, student_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO membership (batch, mem_status, committee, org_id)
+        VALUES (?, ?, ?, ?)
         """
-        return self.execute_update(query, (
+        if not self.execute_update(query, (
             membership.batch, membership.mem_status, membership.committee,
-            membership.org_id, membership.student_id
-        ))
+            membership.org_id
+        )):
+            return False
+            
+        # Get the newly created membership_id
+        query = "SELECT LAST_INSERT_ID()"
+        result = self.execute_query(query)
+        if not result:
+            return False
+            
+        membership_id = result[0][0]
+        
+        # Add the has_membership relationship
+        query = """
+        INSERT INTO has_membership (student_id, membership_id)
+        VALUES (?, ?)
+        """
+        return self.execute_update(query, (membership.student_id, membership_id))
     
     def update_membership_status(self, membership_id: int, status: str) -> bool:
         """Update membership status and handle fee adjustments"""
@@ -172,43 +189,52 @@ class DatabaseManager:
         
         return True
     
-    def get_members_by_organization(self, org_id: int = None) -> List[dict]:
+    def get_members_by_organization(self, org_id: int = None, semester: str = None, acad_year: str = None) -> List[dict]:
         # Get all members with their membership status and organization
+        filter_latest_term = ""
+        filter_main = ""
+        params = []
         if org_id:
-            query = """
-            SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
-                   s.gender, s.degree_program
-            FROM student s
-            JOIN member mb ON s.student_id = mb.student_id
-            JOIN membership m ON mb.student_id = m.student_id
-            JOIN organization org ON m.org_id = org.org_id
-            WHERE org.org_id = ?
-            ORDER BY s.last_name, s.first_name
-            """
-            print(f"Executing query for org_id: {org_id}")  # Debug print
-            results = self.execute_query(query, (org_id,))
-            print(f"Query results: {results}")  # Debug print
-        else:
-            query = """
-            SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
-                   s.gender, s.degree_program
-            FROM student s
-            JOIN member mb ON s.student_id = mb.student_id
-            JOIN membership m ON mb.student_id = m.student_id
-            JOIN organization org ON m.org_id = org.org_id
-            ORDER BY org.org_name, s.last_name
-            """
-            results = self.execute_query(query)
-        
+            params.append(org_id)
+        if semester and acad_year:
+            filter_latest_term = "WHERE t.semester = ? AND t.acad_year = ?"
+            filter_main = "AND lt.semester = ? AND lt.acad_year = ?"
+            params.extend([semester, acad_year])
+        query = f"""
+        WITH latest_terms AS (
+            SELECT 
+                t.membership_id,
+                t.semester,
+                t.acad_year,
+                t.term_end,
+                ROW_NUMBER() OVER (PARTITION BY t.membership_id ORDER BY t.term_end DESC) as rn
+            FROM term t
+            {filter_latest_term}
+        )
+        SELECT s.student_id, s.first_name, s.last_name, 
+               m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
+               s.gender, s.degree_program,
+               lt.semester as latest_semester,
+               lt.acad_year as latest_acad_year,
+               lt.term_end as latest_term_end
+        FROM student s
+        JOIN has_membership hm ON s.student_id = hm.student_id
+        JOIN membership m ON hm.membership_id = m.membership_id
+        JOIN organization org ON m.org_id = org.org_id
+        LEFT JOIN latest_terms lt ON m.membership_id = lt.membership_id AND lt.rn = 1
+        WHERE org.org_id = ? {filter_main}
+        ORDER BY s.last_name, s.first_name
+        """
+        results = self.execute_query(query, tuple(params))
         if results:
             members = [
                 {
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
                     'status': row[3], 'batch': row[4], 'committee': row[5],
                     'organization': row[6], 'membership_id': row[7],
-                    'gender': row[8], 'degree_program': row[9]
+                    'gender': row[8], 'degree_program': row[9],
+                    'latest_semester': row[10], 'latest_acad_year': row[11],
+                    'latest_term_end': row[12]
                 }
                 for row in results
             ]
@@ -223,10 +249,10 @@ class DatabaseManager:
         SELECT s.student_id, s.first_name, s.last_name, 
                t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
                (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance,
-               m.mem_status
+               m.mem_status, t.fee_due
         FROM student s
-        JOIN member mb ON s.student_id = mb.student_id
-        JOIN membership m ON mb.student_id = m.student_id
+        JOIN has_membership hm ON s.student_id = hm.student_id
+        JOIN membership m ON hm.membership_id = m.membership_id
         JOIN organization org ON m.org_id = org.org_id
         JOIN term t ON m.membership_id = t.membership_id
         LEFT JOIN payment p ON t.term_id = p.term_id
@@ -242,7 +268,7 @@ class DatabaseManager:
                 {
                     'student_id': row[0], 'first_name': row[1], 'last_name': row[2],
                     'fee_amount': row[3], 'total_paid': row[4], 'balance': row[5],
-                    'status': row[6]
+                    'status': row[6], 'due_date': row[7]
                 }
                 for row in results
             ]
@@ -607,7 +633,7 @@ class DatabaseManager:
             queries = [
                 """CREATE TABLE organization (
                     org_id INT PRIMARY KEY AUTO_INCREMENT,
-                    org_name VARCHAR(100) NOT NULL
+                    org_name VARCHAR(100) NOT NULL UNIQUE
                 )""",
                 
                 """CREATE TABLE student (
@@ -631,26 +657,34 @@ class DatabaseManager:
                     mem_status VARCHAR(20),
                     committee VARCHAR(50),
                     org_id INT,
+                    FOREIGN KEY (org_id) REFERENCES organization(org_id) ON DELETE CASCADE
+                )""",
+                
+                """CREATE TABLE has_membership (
                     student_id INT,
-                    FOREIGN KEY (org_id) REFERENCES organization(org_id) ON DELETE CASCADE,
-                    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE
+                    membership_id INT,
+                    PRIMARY KEY (student_id, membership_id),
+                    FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE,
+                    FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
                 )""",
                 
                 """CREATE TABLE term (
                     term_id INT PRIMARY KEY AUTO_INCREMENT,
                     semester VARCHAR(20),
+                    payment_status VARCHAR(20),
+                    role VARCHAR(50),
                     term_start DATE,
                     term_end DATE,
                     acad_year VARCHAR(20),
                     fee_amount DECIMAL(10,2),
                     fee_due DATE,
+                    balance DECIMAL(10,2),
                     membership_id INT,
                     FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
                 )""",
                 
                 """CREATE TABLE payment (
                     payment_id INT PRIMARY KEY AUTO_INCREMENT,
-                    payment_status VARCHAR(20),
                     amount DECIMAL(10,2),
                     payment_date DATE,
                     term_id INT,
@@ -669,3 +703,153 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error recreating database: {e}")
             return False
+        
+    def get_available_academic_years(self) -> List[str]:
+        """Get all unique academic years from the database, ordered by most recent first"""
+        query = "SELECT DISTINCT acad_year FROM term ORDER BY acad_year DESC"
+        results = self.execute_query(query)
+        
+        if results:
+            return [row[0] for row in results]
+        return []
+
+    def get_available_semesters_for_year(self, acad_year: str) -> List[str]:
+        """Get available semesters for a specific academic year, in logical order"""
+        query = """
+        SELECT DISTINCT semester FROM term 
+        WHERE acad_year = ? 
+        ORDER BY 
+            CASE semester
+                WHEN '1st' THEN 1
+                WHEN '2nd' THEN 2
+                WHEN 'Summer' THEN 3
+                ELSE 4
+            END
+        """
+        results = self.execute_query(query, (acad_year,))
+        
+        if results:
+            return [row[0] for row in results]
+        return []
+
+    def get_organizations_with_data(self) -> List[Organization]:
+        """Get organizations that have actual membership/financial data"""
+        query = """
+        SELECT DISTINCT o.org_id, o.org_name 
+        FROM organization o
+        INNER JOIN membership m ON o.org_id = m.org_id
+        INNER JOIN term t ON m.membership_id = t.membership_id
+        ORDER BY o.org_name
+        """
+        results = self.execute_query(query)
+        
+        if results:
+            return [Organization(org_id=row[0], org_name=row[1]) for row in results]
+        return self.get_all_organizations()  # Fallback to all orgs
+
+    def get_academic_years_for_organization(self, org_id: int) -> List[str]:
+        """Get academic years that have data for a specific organization"""
+        query = """
+        SELECT DISTINCT t.acad_year 
+        FROM term t
+        INNER JOIN membership m ON t.membership_id = m.membership_id
+        WHERE m.org_id = ?
+        ORDER BY t.acad_year DESC
+        """
+        results = self.execute_query(query, (org_id,))
+        
+        if results:
+            return [row[0] for row in results]
+        return []
+
+    def get_data_summary(self) -> dict:
+        """Get summary of available data for dropdowns"""
+        query = """
+        SELECT 
+            COUNT(DISTINCT o.org_id) as org_count,
+            COUNT(DISTINCT t.acad_year) as year_count,
+            COUNT(DISTINCT t.semester) as semester_count,
+            COUNT(DISTINCT m.membership_id) as member_count,
+            MIN(t.acad_year) as earliest_year,
+            MAX(t.acad_year) as latest_year
+        FROM organization o
+        LEFT JOIN membership m ON o.org_id = m.org_id
+        LEFT JOIN term t ON m.membership_id = t.membership_id
+        """
+        result = self.execute_query(query)
+        
+        if result and result[0]:
+            return {
+                'organizations': result[0][0] or 0,
+                'academic_years': result[0][1] or 0,
+                'semesters': result[0][2] or 0,
+                'members': result[0][3] or 0,
+                'earliest_year': result[0][4] or 'N/A',
+                'latest_year': result[0][5] or 'N/A'
+            }
+        return {
+            'organizations': 0, 'academic_years': 0, 'semesters': 0, 
+            'members': 0, 'earliest_year': 'N/A', 'latest_year': 'N/A'
+        }
+
+    def get_term_dates(self, semester: str, acad_year: str) -> Optional[Tuple[date, date]]:
+        """Get the start and end dates for a specific term"""
+        query = """
+        SELECT term_start, term_end 
+        FROM term 
+        WHERE semester = ? AND acad_year = ? 
+        LIMIT 1
+        """
+        result = self.execute_query(query, (semester, acad_year))
+        
+        if result:
+            return result[0]
+        return None
+
+    def update_term_dates(self, org_id: int, semester: str, acad_year: str, new_start: date, new_end: date) -> bool:
+        """Update term dates for a specific organization, semester, and academic year"""
+        query = """
+        UPDATE term t
+        JOIN membership m ON t.membership_id = m.membership_id
+        SET t.term_start = ?, t.term_end = ?, t.fee_due = ?
+        WHERE m.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        """
+        return self.execute_update(query, (new_start, new_end, new_end, org_id, semester, acad_year))
+
+    def get_member_status(self, student_id: int, org_id: int) -> Optional[str]:
+        """Get a member's status for a specific organization"""
+        query = """
+        SELECT m.mem_status
+        FROM membership m
+        JOIN has_membership hm ON m.membership_id = hm.membership_id
+        WHERE hm.student_id = ? AND m.org_id = ?
+        """
+        result = self.execute_query(query, (student_id, org_id))
+        return result[0][0] if result else None
+
+    def get_member_details(self, student_id: int, org_id: int) -> Optional[dict]:
+        """Get detailed information about a member"""
+        query = """
+        SELECT s.student_id, s.first_name, s.last_name, s.gender, s.degree_program,
+               m.mem_status, m.batch, m.committee, org.org_name
+        FROM student s
+        JOIN has_membership hm ON s.student_id = hm.student_id
+        JOIN membership m ON hm.membership_id = m.membership_id
+        JOIN organization org ON m.org_id = org.org_id
+        WHERE s.student_id = ? AND org.org_id = ?
+        """
+        result = self.execute_query(query, (student_id, org_id))
+        
+        if result:
+            return {
+                'student_id': result[0][0],
+                'first_name': result[0][1],
+                'last_name': result[0][2],
+                'gender': result[0][3],
+                'degree_program': result[0][4],
+                'mem_status': result[0][5],
+                'batch': result[0][6],
+                'committee': result[0][7],
+                'org_name': result[0][8]
+            }
+        return None
