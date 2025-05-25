@@ -60,11 +60,14 @@ def create_database_schema():
             CREATE TABLE IF NOT EXISTS term (
                 term_id INT AUTO_INCREMENT PRIMARY KEY,
                 semester VARCHAR(20),
+                payment_status VARCHAR(20) DEFAULT 'unpaid',
+                role VARCHAR(50) DEFAULT '',
                 term_start DATE,
                 term_end DATE,
                 acad_year VARCHAR(20),
                 fee_amount DECIMAL(10,2),
                 fee_due DATE,
+                balance DECIMAL(10,2) DEFAULT 0.0,
                 membership_id INT,
                 FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -72,7 +75,6 @@ def create_database_schema():
             """
             CREATE TABLE IF NOT EXISTS payment (
                 payment_id INT AUTO_INCREMENT PRIMARY KEY,
-                payment_status VARCHAR(20),
                 amount DECIMAL(10,2),
                 payment_date DATE,
                 term_id INT,

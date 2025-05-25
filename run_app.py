@@ -9,13 +9,31 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
     from main_window import MainWindow
     from database import DatabaseManager
+    from setup_database import create_database_schema
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure all required files are in the same directory")
     sys.exit(1)
 
+def setup_database():
+    """Set up the database if it doesn't exist"""
+    try:
+        if create_database_schema():
+            print("Database setup completed successfully!")
+            return True
+        else:
+            messagebox.showerror("Database Error", "Failed to set up database!")
+            return False
+    except Exception as e:
+        messagebox.showerror("Database Error", f"Error setting up database: {str(e)}")
+        return False
+
 def main():
     """Main application entry point"""
+    
+    # Set up database first
+    if not setup_database():
+        sys.exit(1)
     
     # Create root window
     root = tk.Tk()
