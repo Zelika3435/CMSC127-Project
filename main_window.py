@@ -73,27 +73,35 @@ class MainWindow(tk.Frame):
         all_members_frame = ttk.Frame(membership_notebook)
         membership_notebook.add(all_members_frame, text="All Members")
         
-        # Subtab 2: Membership Terms
-        terms_frame = ttk.Frame(membership_notebook)
-        membership_notebook.add(terms_frame, text="Membership Terms")
-        
-        # --- All Members Subtab ---
+        all_members_frame.columnconfigure(0, weight=1)
+        all_members_frame.columnconfigure(1, weight=0)
+        all_members_frame.rowconfigure(0, weight=1)
         left_panel = ttk.Frame(all_members_frame)
-        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        left_panel.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        
         # Member list with all attributes
-        columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee']
-        self.member_table = DataTable(left_panel, columns)
-        self.member_table.pack(fill=tk.BOTH, expand=True)
+        columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee', 'Membership ID']
+        self.member_table = DataTable(left_panel, columns, height=12)
+        self.member_table.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
         # Right panel for actions
-        right_panel = ttk.Frame(all_members_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
+        right_panel = ttk.Frame(all_members_frame, width=200)
+        right_panel.grid(row=0, column=1, sticky='ns', padx=5, pady=5)
+        right_panel.pack_propagate(False)
         ttk.Button(right_panel, text="Add Member", command=self.add_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Edit Member", command=self.edit_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Remove Member", command=self.remove_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="View Details", command=self.view_member_details).pack(fill=tk.X, pady=2)
+        
         # --- Membership Terms Subtab ---
+        terms_frame = ttk.Frame(membership_notebook)
+        membership_notebook.add(terms_frame, text="Membership Terms")
+        
+        terms_frame.columnconfigure(0, weight=1)
+        terms_frame.columnconfigure(1, weight=0)
+        terms_frame.rowconfigure(0, weight=1)
         left_panel_terms = ttk.Frame(terms_frame)
-        left_panel_terms.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        left_panel_terms.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
         # Only Semester and Academic Year dropdowns here
         org_frame_terms = ttk.Frame(left_panel_terms)
         org_frame_terms.pack(fill=tk.X, pady=5)
@@ -110,8 +118,9 @@ class MainWindow(tk.Frame):
         self.fee_table = DataTable(left_panel_terms, columns_terms)
         self.fee_table.pack(fill=tk.BOTH, expand=True)
         # Right panel for term actions
-        right_panel_terms = ttk.Frame(terms_frame)
-        right_panel_terms.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
+        right_panel_terms = ttk.Frame(terms_frame, width=200)
+        right_panel_terms.grid(row=0, column=1, sticky='ns', padx=5, pady=5)
+        right_panel_terms.pack_propagate(False)
         ttk.Button(right_panel_terms, text="Add Membership Term", command=self.create_terms).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel_terms, text="Edit Term Dates", command=self.edit_term_dates).pack(fill=tk.X, pady=2)
         # Load organizations
@@ -350,11 +359,14 @@ class MainWindow(tk.Frame):
             # Clear existing items
             self.member_table.clear()
             # Update table columns to match the data
-            columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee']
+            columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee', 'Membership ID']
             self.member_table.tree['columns'] = columns
             for col in columns:
                 self.member_table.tree.heading(col, text=col)
                 self.member_table.tree.column(col, width=100)
+            # Hide Membership ID column
+            self.member_table.tree.column('Membership ID', width=0, stretch=False, minwidth=0)
+            self.member_table.tree.heading('Membership ID', text='', anchor='w')
             # Insert new data
             if members:
                 formatted_members = []
@@ -374,7 +386,8 @@ class MainWindow(tk.Frame):
                         'Standing': member.get('standing', ''),
                         'Status': status,
                         'Batch': member['batch'],
-                        'Committee': member.get('committee', '')
+                        'Committee': member.get('committee', ''),
+                        'Membership ID': member.get('membership_id', '')
                     }
                     formatted_members.append(formatted_member)
                 print(f"Formatted members for display: {formatted_members}")  # Debug print
@@ -548,7 +561,7 @@ class MainWindow(tk.Frame):
         fields = [
             {'name': 'committee', 'label': 'Role', 'type': 'combobox', 
              'values': ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer'],
-             'default': selected['Role']},
+             'default': selected['Committee']},
             {'name': 'mem_status', 'label': 'Status', 'type': 'combobox',
              'values': ['active', 'inactive', 'suspended', 'expelled', 'alumni'],
              'default': selected['Status']}
@@ -559,13 +572,15 @@ class MainWindow(tk.Frame):
         
         if dialog.result:
             try:
-                # Update membership status
-                if not self.db.update_membership_status(selected['membership_id'], dialog.result['mem_status']):
+                membership_id = int(selected['Membership ID'])
+                # Update both committee and status
+                if not self.db.update_membership_status(membership_id, dialog.result['mem_status']):
                     raise Exception("Failed to update membership status")
-                
-                messagebox.showinfo("Success", "Member updated successfully")
+                # Add a method to update committee if needed
+                if not self.db.update_membership_committee(membership_id, dialog.result['committee']):
+                    raise Exception("Failed to update committee")
                 self.load_members()
-                
+                messagebox.showinfo("Success", "Member updated successfully")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to update member: {str(e)}")
     
@@ -577,13 +592,11 @@ class MainWindow(tk.Frame):
         
         if messagebox.askyesno("Confirm", "Are you sure you want to remove this member?"):
             try:
-                # Delete student (this will cascade delete related records)
-                if not self.db.delete_student(selected['student_id']):
-                    raise Exception("Failed to delete student")
-                
-                messagebox.showinfo("Success", "Member removed successfully")
+                membership_id = int(selected['Membership ID'])
+                if not self.db.delete_membership(membership_id):
+                    raise Exception("Failed to delete membership")
                 self.load_members()
-                
+                messagebox.showinfo("Success", "Member removed successfully")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to remove member: {str(e)}")
     

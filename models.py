@@ -24,11 +24,12 @@ class Member:
 
 @dataclass
 class Membership:
-    def __init__(self, membership_id, batch, mem_status, org_id):
-        self.membership_id = membership_id
-        self.batch = batch
-        self.mem_status = mem_status
-        self.org_id = org_id
+    membership_id: int
+    batch: str
+    mem_status: str
+    committee: str
+    org_id: int
+    student_id: int
 
 @dataclass
 class HasMembership:

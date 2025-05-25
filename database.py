@@ -853,3 +853,22 @@ class DatabaseManager:
                 'org_name': result[0][8]
             }
         return None
+
+    def update_membership_committee(self, membership_id: int, committee: str) -> bool:
+        """Update the committee/role for a membership"""
+        query = "UPDATE membership SET committee=? WHERE membership_id=?"
+        return self.execute_update(query, (committee, membership_id))
+
+    def delete_membership(self, membership_id: int) -> bool:
+        """Delete a membership and its has_membership link"""
+        # First delete from has_membership
+        query1 = "DELETE FROM has_membership WHERE membership_id=?"
+        # Then delete from membership
+        query2 = "DELETE FROM membership WHERE membership_id=?"
+        try:
+            self.execute_update(query1, (membership_id,))
+            self.execute_update(query2, (membership_id,))
+            return True
+        except Exception as e:
+            print(f"Error deleting membership: {e}")
+            return False
