@@ -40,18 +40,17 @@ class HasMembership:
 
 @dataclass
 class Term:
-    def __init__(self, term_id, semester, payment_status, role, term_start, term_end, acad_year, fee_amount, fee_due, balance, membership_id):
-        self.term_id = term_id
-        self.semester = semester
-        self.payment_status = payment_status
-        self.role = role
-        self.term_start = term_start
-        self.term_end = term_end
-        self.acad_year = acad_year
-        self.fee_amount = fee_amount
-        self.fee_due = fee_due
-        self.balance = balance
-        self.membership_id = membership_id
+    term_id: Optional[int]
+    semester: str
+    payment_status: str = "unpaid"
+    role: str = ""
+    term_start: date = None
+    term_end: date = None
+    acad_year: str = ""
+    fee_amount: float = 0.0
+    fee_due: date = None
+    balance: float = 0.0
+    membership_id: int = None
 
 @dataclass
 class Payment:
