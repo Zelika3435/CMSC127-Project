@@ -105,6 +105,20 @@ class DatabaseManager:
             return [Organization(*row) for row in results]
         return []
     
+    def update_organization(self, org: Organization) -> bool:
+        """Update organization information"""
+        query = """
+        UPDATE organization 
+        SET org_name = ?
+        WHERE org_id = ?
+        """
+        return self.execute_update(query, (org.org_name, org.org_id))
+    
+    def delete_organization(self, org_id: int) -> bool:
+        """Delete an organization"""
+        query = "DELETE FROM organization WHERE org_id = ?"
+        return self.execute_update(query, (org_id,))
+    
     # MEMBERSHIP OPERATIONS
     def add_member(self, student_id: int) -> bool:
         # Add student to member table
@@ -486,12 +500,12 @@ class DatabaseManager:
         term.fee_amount = fee_amount
         
         query = """
-        INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO term (semester, term_start, term_end, acad_year, fee_amount, fee_due, membership_id, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         return self.execute_update(query, (
             term.semester, term.term_start, term.term_end, term.acad_year,
-            term.fee_amount, term.fee_due, term.membership_id
+            term.fee_amount, term.fee_due, term.membership_id, term.role
         ))
     
     def add_payment(self, payment: Payment) -> bool:
@@ -829,3 +843,8 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error deleting membership: {e}")
             return False
+
+    def update_membership_role(self, membership_id: int, role: str) -> bool:
+        """Update the role for a membership"""
+        query = "UPDATE membership SET role = ? WHERE membership_id = ?"
+        return self.execute_update(query, (role, membership_id))
