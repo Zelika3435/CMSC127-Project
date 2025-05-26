@@ -139,7 +139,6 @@ class MainWindow(tk.Frame):
         ttk.Button(right_panel, text="Add Member", command=self.add_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Edit Member", command=self.edit_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Remove Member", command=self.remove_member).pack(fill=tk.X, pady=2)
-        ttk.Button(right_panel, text="View Details", command=self.view_member_details).pack(fill=tk.X, pady=2)
         
         # --- Membership Terms Subtab ---
         terms_frame = ttk.Frame(membership_notebook)
@@ -830,7 +829,7 @@ class MainWindow(tk.Frame):
             # Get members for the selected semester
             query = """
             SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, t.fee_amount, 
+                   t.payment_status, t.fee_amount, 
                    COALESCE(SUM(p.amount), 0) as total_paid,
                    (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance,
                    t.fee_due, t.term_id
@@ -848,7 +847,7 @@ class MainWindow(tk.Frame):
             self.fee_table.clear()
             
             # Update table columns
-            columns = ['Student ID', 'Name', 'Status', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
+            columns = ['Student ID', 'Name', 'Payment Status', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
             self.fee_table.tree['columns'] = columns
             for col in columns:
                 self.fee_table.tree.heading(col, text=col)
@@ -861,7 +860,7 @@ class MainWindow(tk.Frame):
                     formatted_member = {
                         'Student ID': row[0],
                         'Name': f"{row[1]} {row[2]}",
-                        'Status': row[3],
+                        'Payment Status': row[3],
                         'Fee Amount': f"₱{row[4]:.2f}",
                         'Amount Paid': f"₱{row[5]:.2f}",
                         'Balance': f"₱{row[6]:.2f}",
@@ -1061,42 +1060,6 @@ class MainWindow(tk.Frame):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to remove member: {str(e)}")
     
-    def view_member_details(self):
-        selected = self.member_table.get_selected_item()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select a member to view details")
-            return
-        
-        try:
-            # Get member's unpaid fees
-            unpaid_fees = self.db.get_member_unpaid_fees(selected['Student ID'])
-            
-            # Create details window
-            details_window = tk.Toplevel(self)
-            details_window.title(f"Member Details - {selected['First Name']} {selected['Last Name']}")
-            details_window.geometry("600x400")
-            
-            # Member info
-            info_frame = ttk.LabelFrame(details_window, text="Member Information")
-            info_frame.pack(fill=tk.X, padx=5, pady=5)
-            
-            ttk.Label(info_frame, text=f"Student ID: {selected['Student ID']}").pack(anchor=tk.W)
-            ttk.Label(info_frame, text=f"Name: {selected['First Name']} {selected['Last Name']}").pack(anchor=tk.W)
-            ttk.Label(info_frame, text=f"Status: {selected['Status']}").pack(anchor=tk.W)
-            ttk.Label(info_frame, text=f"Batch: {selected['Batch']}").pack(anchor=tk.W)
-            
-            # Unpaid fees
-            fees_frame = ttk.LabelFrame(details_window, text="Unpaid Fees")
-            fees_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-            
-            columns = ['Organization', 'Semester', 'Academic Year', 'Fee Amount', 'Amount Paid', 'Balance']
-            fees_table = DataTable(fees_frame, columns)
-            fees_table.pack(fill=tk.BOTH, expand=True)
-            fees_table.insert_data(unpaid_fees)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load member details: {str(e)}")
-    
     def show_receipt(self, payment: Payment, member_info: dict, term_info: dict):
         """Display a simple receipt for the payment"""
         try:
@@ -1122,7 +1085,7 @@ class MainWindow(tk.Frame):
             ttk.Label(details_frame, text="Member Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
             ttk.Label(details_frame, text=f"Name: {member_info['Name']}").pack(anchor=tk.W)
             ttk.Label(details_frame, text=f"Student ID: {member_info['Student ID']}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Status: {member_info['Status']}").pack(anchor=tk.W)
+            ttk.Label(details_frame, text=f"Payment Status: {member_info['Payment Status']}").pack(anchor=tk.W)
             
             # Term details
             ttk.Label(details_frame, text="\nTerm Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
@@ -1204,7 +1167,7 @@ class MainWindow(tk.Frame):
                 # First check if this payment completes the balance
                 query = """
                 SELECT t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
-                       t.semester, t.acad_year, t.fee_due
+                       t.semester, t.acad_year, t.fee_due, t.payment_status
                 FROM term t
                 LEFT JOIN payment p ON t.term_id = p.term_id
                 WHERE t.term_id = ?
@@ -1226,13 +1189,21 @@ class MainWindow(tk.Frame):
                     # Show success message first
                     messagebox.showinfo("Success", "Payment recorded successfully")
                     
-                    # Then show receipt
+                    # Then show receipt with updated information
                     term_info = {
                         'semester': result[0][2],
                         'acad_year': result[0][3],
                         'fee_amount': float(fee_amount)
                     }
-                    self.show_receipt(payment, selected, term_info)
+                    
+                    # Create updated member info with new payment status
+                    updated_member_info = {
+                        'Name': selected['Name'],
+                        'Student ID': selected['Student ID'],
+                        'Payment Status': payment_status
+                    }
+                    
+                    self.show_receipt(payment, updated_member_info, term_info)
                 
                 # Refresh the financial data
                 self.load_financial_data()

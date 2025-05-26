@@ -56,6 +56,15 @@ def create_database_schema():
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
             """,
             """
+            CREATE TABLE IF NOT EXISTS has_membership (
+                student_id INT,
+                membership_id INT,
+                PRIMARY KEY (student_id, membership_id),
+                FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE,
+                FOREIGN KEY (membership_id) REFERENCES membership(membership_id) ON DELETE CASCADE
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+            """,
+            """
             CREATE TABLE IF NOT EXISTS term (
                 term_id INT AUTO_INCREMENT PRIMARY KEY,
                 semester VARCHAR(20),

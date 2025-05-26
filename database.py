@@ -141,21 +141,21 @@ class DatabaseManager:
             # Membership already exists, update it instead
             update_query = """
             UPDATE membership 
-            SET batch = ?, mem_status = ?, committee = ?
+            SET batch = ?, committee = ?
             WHERE student_id = ? AND org_id = ?
             """
             return self.execute_update(update_query, (
-                membership.batch, membership.mem_status, membership.committee,
+                membership.batch, membership.committee,
                 membership.student_id, membership.org_id
             ))
         
         # Add new membership record
         insert_query = """
-        INSERT INTO membership (batch, mem_status, committee, org_id, student_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO membership (batch, committee, org_id, student_id)
+        VALUES (?, ?, ?, ?)
         """
         return self.execute_update(insert_query, (
-            membership.batch, membership.mem_status, membership.committee,
+            membership.batch, membership.committee,
             membership.org_id, membership.student_id
         ))
     
@@ -183,12 +183,13 @@ class DatabaseManager:
                 t.semester,
                 t.acad_year,
                 t.term_end,
+                t.mem_status,
                 ROW_NUMBER() OVER (PARTITION BY t.membership_id ORDER BY t.term_end DESC) as rn
             FROM term t
             {filter_latest_term}
         )
         SELECT s.student_id, s.first_name, s.last_name, 
-               m.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
+               lt.mem_status, m.batch, m.committee, org.org_name, m.membership_id,
                s.gender, s.degree_program, s.standing,
                lt.semester as latest_semester,
                lt.acad_year as latest_acad_year,
@@ -224,14 +225,14 @@ class DatabaseManager:
         SELECT s.student_id, s.first_name, s.last_name, 
                t.fee_amount, SUM(IFNULL(p.amount, 0)) as total_paid,
                (t.fee_amount - SUM(IFNULL(p.amount, 0))) as balance,
-               m.mem_status, t.fee_due
+               t.mem_status, t.fee_due
         FROM student s
         JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
         JOIN term t ON m.membership_id = t.membership_id
         LEFT JOIN payment p ON t.term_id = p.term_id
         WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
-        AND m.mem_status NOT IN ('expelled', 'alumni')
+        AND t.mem_status NOT IN ('expelled', 'alumni')
         GROUP BY s.student_id, t.term_id
         HAVING balance > 0
         """
@@ -256,7 +257,8 @@ class DatabaseManager:
         JOIN has_membership mb ON s.student_id = mb.student_id
         JOIN membership m ON mb.membership_id = m.membership_id
         JOIN organization org ON m.org_id = org.org_id
-        WHERE org.org_id = ? AND ((s.standing = 'Graduate' OR m.mem_status = 'alumni') OR (SUBSTR(m.batch, 6) < ? AND ? < 5));
+        JOIN term t ON m.membership_id = t.membership_id
+        WHERE org.org_id = ? AND ((s.standing = 'Graduate' OR t.mem_status = 'alumni') OR (SUBSTR(m.batch, 6) < ? AND ? < 5));
         """
 
         results = self.execute_query(query, (org_id, year, month))
@@ -422,11 +424,12 @@ class DatabaseManager:
         # Get percentage of active vs inactive members for the last n semesters
         query = """
         SELECT 
-            COUNT(CASE WHEN m.mem_status = 'active' THEN 1 END) as active_count,
-            COUNT(CASE WHEN m.mem_status = 'inactive' THEN 1 END) as inactive_count,
+            COUNT(CASE WHEN t.mem_status = 'active' THEN 1 END) as active_count,
+            COUNT(CASE WHEN t.mem_status = 'inactive' THEN 1 END) as inactive_count,
             COUNT(*) as total_count
         FROM membership m
         JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
         WHERE org.org_id = ?
         AND m.batch >= (
             SELECT MAX(batch) - ?
@@ -504,8 +507,9 @@ class DatabaseManager:
         """Calculate fees for a member based on their status"""
         # Get membership status
         query = """
-        SELECT m.mem_status, m.batch
+        SELECT t.mem_status, m.batch
         FROM membership m
+        JOIN term t ON m.membership_id = t.membership_id
         WHERE m.membership_id = ?
         """
         result = self.execute_query(query, (membership_id,))
@@ -850,9 +854,12 @@ class DatabaseManager:
     def get_member_status(self, student_id: int, org_id: int) -> Optional[str]:
         """Get a member's status for a specific organization"""
         query = """
-        SELECT m.mem_status
+        SELECT t.mem_status
         FROM membership m
+        JOIN term t ON m.membership_id = t.membership_id
         WHERE m.student_id = ? AND m.org_id = ?
+        ORDER BY t.term_end DESC
+        LIMIT 1
         """
         result = self.execute_query(query, (student_id, org_id))
         return result[0][0] if result else None
@@ -861,11 +868,14 @@ class DatabaseManager:
         """Get detailed information about a member"""
         query = """
         SELECT s.student_id, s.first_name, s.last_name, s.gender, s.degree_program,
-               m.mem_status, m.batch, m.committee, org.org_name
+               t.mem_status, m.batch, m.committee, org.org_name
         FROM student s
         JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
         WHERE s.student_id = ? AND org.org_id = ?
+        ORDER BY t.term_end DESC
+        LIMIT 1
         """
         result = self.execute_query(query, (student_id, org_id))
         
