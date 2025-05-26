@@ -47,7 +47,6 @@ def create_database_schema():
             CREATE TABLE IF NOT EXISTS membership (
                 membership_id INT AUTO_INCREMENT PRIMARY KEY,
                 batch VARCHAR(20),
-                mem_status VARCHAR(50) DEFAULT 'active',
                 committee VARCHAR(50),
                 org_id INT,
                 student_id INT,
@@ -61,6 +60,7 @@ def create_database_schema():
                 term_id INT AUTO_INCREMENT PRIMARY KEY,
                 semester VARCHAR(20),
                 payment_status VARCHAR(20) DEFAULT 'unpaid',
+                mem_status VARCHAR(50) DEFAULT 'active',
                 role VARCHAR(50) DEFAULT '',
                 term_start DATE,
                 term_end DATE,

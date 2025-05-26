@@ -26,7 +26,6 @@ class Member:
 class Membership:
     membership_id: int
     batch: str
-    mem_status: str
     committee: str
     org_id: int
     student_id: int
@@ -43,6 +42,7 @@ class Term:
     term_id: Optional[int]
     semester: str
     payment_status: str = "unpaid"
+    mem_status: str = "active"
     role: str = ""
     term_start: date = None
     term_end: date = None
