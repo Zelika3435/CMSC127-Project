@@ -480,6 +480,9 @@ class MainWindow(tk.Frame):
         ttk.Button(left_panel, text="Executive Committee", command=self.show_executive_committee).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Role History", command=self.show_role_history).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Alumni List", command=self.show_alumni).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Unpaid Fees by Organization", command=self.show_unpaid_fees).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Unpaid Fees by Student", command=self.show_student_unpaid).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Member Roles by AY", command=self.show_member_in_role).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Financial Summary", command=self.show_financial_summary).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Late Payments", command=self.show_late_payments_report).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Highest Debt", command=self.show_highest_debt_report).pack(fill=tk.X, pady=2)
@@ -1379,8 +1382,11 @@ class MainWindow(tk.Frame):
         if dialog.result:
             orgs = self.db.get_all_organizations()
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            year = int(dialog.result['as_of_date'].split('-')[0])
+            month = int(dialog.result['as_of_date'].split('-')[1])
+
             
-            alumni = self.db.get_alumni_members(org_id, dialog.result['as_of_date'])
+            alumni = self.db.get_alumni_members(org_id, year, month)
             
             # Update table columns for alumni
             columns = ['student_id', 'first_name', 'last_name', 'batch']
@@ -1388,9 +1394,138 @@ class MainWindow(tk.Frame):
             for col in columns:
                 self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
                 self.report_table.tree.column(col, width=100)
+
+            formatted_data = []
+            for alum in alumni:
+                formatted_data.append({
+                    'student_id': alum['student_id'],
+                    'first_name': alum['first_name'],
+                    'last_name': alum['last_name'],
+                    'batch': alum['batch']
+                })
             
             self.report_table.insert_data(alumni)
-    
+
+    def show_unpaid_fees(self):
+        org_name = self.report_org_combo.get()
+        semester = self.report_semester_combo.get()
+        acad_year = self.report_year_combo.get()
+        if not org_name:
+            messagebox.showwarning("Warning", "Please select an organization")
+            return
+        
+        orgs = self.db.get_all_organizations()
+        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+        
+        unpaid = self.db.get_unpaid_fees(org_id, semester, acad_year) 
+        
+        # Update table columns for membership status
+        columns = ['membership_id', 'first_name', 'last_name', 'total_balance']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = []
+        for fee in unpaid:
+            formatted_data.append({
+                'membership_id': fee['membership_id'],
+                'first_name': fee['first_name'],
+                'last_name': fee['last_name'],
+                'total_balance': f"₱{fee['total_balance']:.2f}"
+            })
+        self.report_table.insert_data(formatted_data)
+
+    def show_student_unpaid(self):
+        students = self.db.get_all_students()
+        
+        student_options = [f"{s.student_id} ({s.first_name} {s.last_name})" for s in students]
+
+        fields = [
+            {'name': 'student', 'label': 'Select Student', 'type': 'combobox', 'values': student_options},
+        ]
+        
+        dialog = FormDialog(self, "Select Student", fields)
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            selected_student = dialog.result['student']
+            student_id = int(selected_student.split(' ')[0])
+        
+            unpaid = self.db.get_student_unpaid(student_id) 
+        
+        # Update table columns for membership status
+        columns = ['first_name', 'last_name', 'org_id', 'org_name', 'term_id', 'semester', 'acad_year', 'amount']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = []
+        for fee in unpaid:
+            formatted_data.append({
+                'first_name': fee['first_name'],
+                'last_name': fee['last_name'],
+                'org_id': fee['org_id'],
+                'org_name': fee['org_name'],
+                'term_id': fee['term_id'],
+                'semester': fee['semester'],
+                'acad_year': fee['acad_year'],
+                'payment_status': fee['payment_status'],
+                'amount': fee['amount']
+            })
+        self.report_table.insert_data(formatted_data)
+
+    def show_member_in_role(self):
+        org_name = self.report_org_combo.get()
+        acad_year = self.report_year_combo.get()
+        if not org_name:
+            messagebox.showwarning("Warning", "Please select an organization")
+            return
+        
+        orgs = self.db.get_all_organizations()
+        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+        
+        fields = [
+            {'name': 'role', 'label': 'Role', 'type': 'combobox', 
+             'values': ['President', 'Vice President', 'Secretary', 'Treasurer', 'Member']}
+        ]
+
+        dialog = FormDialog(self, "Select Executive Role", fields)
+        self.wait_window(dialog)
+
+        if dialog.result:
+            role = dialog.result['role'].lower()
+        
+            officers = self.db.get_member_in_role(org_id, role, acad_year) 
+
+        # Update table columns for membership status
+        columns = ['membership_id', 'first_name', 'last_name', 'org_id', 'term_id', 'semester', 'term_start', 'term_end', 'acad_year', 'role']
+        self.report_table.tree['columns'] = columns
+        for col in columns:
+            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.column(col, width=100)
+        
+        # Format the data
+        formatted_data = []
+        for officer in officers:
+            formatted_data.append({
+                'mebership_id': officer['membership_id'],
+                'first_name': officer['first_name'],
+                'last_name': officer['last_name'],
+                'org_id': officer['org_id'],
+                'term_id': officer['term_id'],
+                'semester': officer['semester'],
+                'term_start': officer['term_start'],
+                'term_end': officer['term_end'],
+                'acad_year': officer['acad_year'],
+                'role': officer['role']
+            })
+        self.report_table.insert_data(formatted_data)
+
+
     def show_financial_summary(self):
         org_name = self.report_org_combo.get()
         if not org_name:
