@@ -350,20 +350,23 @@ class DatabaseManager:
     def get_membership_status_percentage(self, org_id: int, n_semesters: int) -> dict:
         # Get percentage of active vs inactive members for the last n semesters
         query = """
-        SELECT 
-            COUNT(CASE WHEN m.mem_status = 'active' THEN 1 END) as active_count,
-            COUNT(CASE WHEN m.mem_status = 'inactive' THEN 1 END) as inactive_count,
-            COUNT(*) as total_count
-        FROM membership m
-        JOIN organization org ON m.org_id = org.org_id
-        WHERE org.org_id = ?
-        AND m.batch >= (
-            SELECT MAX(batch) - ?
-            FROM membership
-            WHERE org_id = ?
+        WITH latest_terms AS (
+            SELECT 
+                t.membership_id,
+                t.mem_status,
+                ROW_NUMBER() OVER (PARTITION BY t.membership_id ORDER BY t.term_end DESC) as rn
+            FROM term t
+            JOIN membership m ON t.membership_id = m.membership_id
+            WHERE m.org_id = ?
         )
+        SELECT 
+            COUNT(CASE WHEN lt.mem_status = 'active' THEN 1 END) as active_count,
+            COUNT(CASE WHEN lt.mem_status = 'inactive' THEN 1 END) as inactive_count,
+            COUNT(*) as total_count
+        FROM latest_terms lt
+        WHERE lt.rn = 1
         """
-        results = self.execute_query(query, (org_id, n_semesters, org_id))
+        results = self.execute_query(query, (org_id,))
         
         if results and results[0]:
             active_count, inactive_count, total_count = results[0]
@@ -378,15 +381,23 @@ class DatabaseManager:
     def get_alumni_members(self, org_id: int, as_of_date: str) -> List[dict]:
         # Get all alumni members as of a specific date
         query = """
+        WITH latest_terms AS (
+            SELECT 
+                t.membership_id,
+                t.mem_status,
+                ROW_NUMBER() OVER (PARTITION BY t.membership_id ORDER BY t.term_end DESC) as rn
+            FROM term t
+            JOIN membership m ON t.membership_id = m.membership_id
+            WHERE m.org_id = ? AND t.term_end <= ?
+        )
         SELECT s.student_id, s.first_name, s.last_name, m.batch
         FROM student s
-        JOIN member mb ON s.student_id = mb.student_id
-        JOIN membership m ON mb.student_id = m.student_id
+        JOIN membership m ON s.student_id = m.student_id
         JOIN organization org ON m.org_id = org.org_id
-        WHERE org.org_id = ? AND m.mem_status = 'alumni'
-        AND m.batch <= ?
+        JOIN latest_terms lt ON m.membership_id = lt.membership_id
+        WHERE org.org_id = ? AND lt.mem_status = 'alumni' AND lt.rn = 1
         """
-        results = self.execute_query(query, (org_id, as_of_date))
+        results = self.execute_query(query, (org_id, as_of_date, org_id))
         
         if results:
             return [
@@ -454,13 +465,14 @@ class DatabaseManager:
     # TERM AND PAYMENT OPERATIONS
     def calculate_member_fees(self, membership_id: int, semester: str, acad_year: str) -> float:
         """Calculate fees for a member based on their status"""
-        # Get membership status
+        # Get membership status from the latest term
         query = """
-        SELECT m.mem_status, m.batch
-        FROM membership m
-        WHERE m.membership_id = ?
+        SELECT t.mem_status, m.batch
+        FROM term t
+        JOIN membership m ON t.membership_id = m.membership_id
+        WHERE t.membership_id = ? AND t.semester = ? AND t.acad_year = ?
         """
-        result = self.execute_query(query, (membership_id,))
+        result = self.execute_query(query, (membership_id, semester, acad_year))
         if not result:
             return 0.0
         
@@ -476,8 +488,7 @@ class DatabaseManager:
             query = """
             SELECT t.semester, t.acad_year
             FROM term t
-            JOIN membership m ON t.membership_id = m.membership_id
-            WHERE m.membership_id = ? AND m.mem_status = 'inactive'
+            WHERE t.membership_id = ? AND t.mem_status = 'inactive'
             ORDER BY t.term_start DESC
             LIMIT 1
             """
@@ -802,9 +813,12 @@ class DatabaseManager:
     def get_member_status(self, student_id: int, org_id: int) -> Optional[str]:
         """Get a member's status for a specific organization"""
         query = """
-        SELECT m.mem_status
-        FROM membership m
+        SELECT t.mem_status
+        FROM term t
+        JOIN membership m ON t.membership_id = m.membership_id
         WHERE m.student_id = ? AND m.org_id = ?
+        ORDER BY t.term_end DESC
+        LIMIT 1
         """
         result = self.execute_query(query, (student_id, org_id))
         return result[0][0] if result else None
