@@ -2,9 +2,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from gui_components import DataTable, FormDialog
 from database import DatabaseManager
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from models import Membership, Payment, Student, Term, Organization
+from models import Membership, Payment, Student, Term
 
 class MainWindow(tk.Frame):
     def __init__(self, root):
@@ -20,20 +20,19 @@ class MainWindow(tk.Frame):
             self.root.destroy()
             return
         
-        # Create status bar first
-        self.status_bar = ttk.Label(self, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        
         # Create main notebook (tabs)
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Create tabs
-        self.create_student_management_tab()
-        self.create_organization_tab()
         self.create_membership_tab()
         self.create_financial_tab()
         self.create_reports_tab()
+        self.create_viewmem_tab()
+        
+        # Status bar
+        self.status_bar = ttk.Label(self, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Menu bar
         self.create_menu()
@@ -59,46 +58,28 @@ class MainWindow(tk.Frame):
         membership_frame = ttk.Frame(self.notebook)
         self.notebook.add(membership_frame, text="Membership Management")
         
-        # Filter frame
-        filter_frame = ttk.Frame(membership_frame)
-        filter_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(filter_frame, text="Organization:").pack(side=tk.LEFT)
-        self.org_combo = ttk.Combobox(filter_frame, state="readonly")
+        # Left panel for member list
+        left_panel = ttk.Frame(membership_frame)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Organization selection
+        org_frame = ttk.Frame(left_panel)
+        org_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(org_frame, text="Organization:").pack(side=tk.LEFT)
+        self.org_combo = ttk.Combobox(org_frame, state="readonly")
         self.org_combo.pack(side=tk.LEFT, padx=5)
         self.org_combo.bind('<<ComboboxSelected>>', self.load_members)
         
-        # Create subtabs within membership tab
-        membership_notebook = ttk.Notebook(membership_frame)
-        membership_notebook.pack(fill=tk.BOTH, expand=True)
-        
-        # Subtab 1: All Members
-        all_members_frame = ttk.Frame(membership_notebook)
-        membership_notebook.add(all_members_frame, text="All Members")
-        
-        all_members_frame.columnconfigure(0, weight=1)
-        all_members_frame.columnconfigure(1, weight=0)
-        all_members_frame.rowconfigure(0, weight=1)
-        left_panel = ttk.Frame(all_members_frame)
-        left_panel.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        
-        # Search frame for All Members
-        search_frame_members = ttk.Frame(left_panel)
-        search_frame_members.pack(fill=tk.X, pady=5)
-        ttk.Label(search_frame_members, text="Search:").pack(side=tk.LEFT)
-        self.member_search_var = tk.StringVar()
-        self.member_search_var.trace('w', self.filter_member_data)  # Bind to search box changes
-        member_search_entry = ttk.Entry(search_frame_members, textvariable=self.member_search_var)
-        member_search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # Member list with all attributes
-        columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee', 'Membership ID']
-        self.member_table = DataTable(left_panel, columns, height=12)
-        self.member_table.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Member list
+        columns = ['Student ID', 'First Name', 'Last Name', 'Status', 'Role', 'Batch']
+        self.member_table = DataTable(left_panel, columns)
+        self.member_table.pack(fill=tk.BOTH, expand=True)
         
         # Right panel for actions
-        right_panel = ttk.Frame(all_members_frame, width=200)
-        right_panel.grid(row=0, column=1, sticky='ns', padx=5, pady=5)
-        right_panel.pack_propagate(False)
+        right_panel = ttk.Frame(membership_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
+        
+        # Action buttons
         ttk.Button(right_panel, text="Add Member", command=self.add_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Edit Member", command=self.edit_member).pack(fill=tk.X, pady=2)
         ttk.Button(right_panel, text="Remove Member", command=self.remove_member).pack(fill=tk.X, pady=2)
@@ -285,47 +266,28 @@ class MainWindow(tk.Frame):
         financial_frame = ttk.Frame(self.notebook)
         self.notebook.add(financial_frame, text="Financial Management")
         
-        # Configure grid weights for the main frame
-        financial_frame.columnconfigure(0, weight=3)  # Left panel gets more space
-        financial_frame.columnconfigure(1, weight=1)  # Right panel gets less space
-        financial_frame.rowconfigure(0, weight=1)
-        
         # Left panel for fee list
         left_panel = ttk.Frame(financial_frame)
-        left_panel.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Organization and term selection
         filter_frame = ttk.Frame(left_panel)
         filter_frame.pack(fill=tk.X, pady=5)
         
-        # Configure filter frame grid
-        filter_frame.columnconfigure(1, weight=1)
-        filter_frame.columnconfigure(3, weight=1)
-        filter_frame.columnconfigure(5, weight=1)
-        
         ttk.Label(filter_frame, text="Organization:").grid(row=0, column=0, padx=5)
         self.fin_org_combo = ttk.Combobox(filter_frame, state="readonly")
-        self.fin_org_combo.grid(row=0, column=1, padx=5, sticky='ew')
-        self.fin_org_combo.bind('<<ComboboxSelected>>', lambda e: self.load_financial_data())
+        self.fin_org_combo.grid(row=0, column=1, padx=5)
         
         ttk.Label(filter_frame, text="Semester:").grid(row=0, column=2, padx=5)
         self.semester_combo = ttk.Combobox(filter_frame, values=["1st", "2nd", "Summer"], state="readonly")
-        self.semester_combo.grid(row=0, column=3, padx=5, sticky='ew')
-        self.semester_combo.bind('<<ComboboxSelected>>', lambda e: self.load_financial_data())
+        self.semester_combo.grid(row=0, column=3, padx=5)
         
         ttk.Label(filter_frame, text="Academic Year:").grid(row=0, column=4, padx=5)
         self.acad_year_combo = ttk.Combobox(filter_frame, state="readonly")
-        self.acad_year_combo.grid(row=0, column=5, padx=5, sticky='ew')
-        self.acad_year_combo.bind('<<ComboboxSelected>>', lambda e: self.load_financial_data())
+        self.acad_year_combo.grid(row=0, column=5, padx=5)
         
-        # Search frame
-        search_frame = ttk.Frame(left_panel)
-        search_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
-        self.financial_search_var = tk.StringVar()
-        self.financial_search_var.trace('w', self.filter_financial_data)  # Bind to search box changes
-        financial_search_entry = ttk.Entry(search_frame, textvariable=self.financial_search_var)
-        financial_search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Button(filter_frame, text="Apply Filter", command=self.load_financial_data).grid(row=0, column=6, padx=5)
+        ttk.Button(filter_frame, text="Create Terms", command=self.create_terms).grid(row=0, column=7, padx=5)
         
         # Fee list
         columns = ['Student ID', 'Name', 'Status', 'Fee Amount', 'Amount Paid', 'Balance', 'Due Date']
@@ -333,20 +295,13 @@ class MainWindow(tk.Frame):
         self.fee_table.pack(fill=tk.BOTH, expand=True)
         
         # Right panel for actions
-        right_panel = ttk.Frame(financial_frame, width=200)  # Set fixed width
-        right_panel.grid(row=0, column=1, sticky='ns', padx=5, pady=5)
-        right_panel.grid_propagate(False)  # Prevent the frame from shrinking
+        right_panel = ttk.Frame(financial_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
         
-        # Action buttons with padding and proper spacing
-        button_frame = ttk.Frame(right_panel)
-        button_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(button_frame, text="Record Payment", command=self.record_payment).pack(fill=tk.X, pady=2)
-        ttk.Button(button_frame, text="View Late Payments", command=self.view_late_payments).pack(fill=tk.X, pady=2)
-        ttk.Button(button_frame, text="View Highest Debt", command=self.view_highest_debt).pack(fill=tk.X, pady=2)
-        
-        # Store original financial data for filtering
-        self.original_financial_data = []
+        # Action buttons
+        ttk.Button(right_panel, text="Record Payment", command=self.record_payment).pack(fill=tk.X, pady=2)
+        ttk.Button(right_panel, text="View Late Payments", command=self.view_late_payments).pack(fill=tk.X, pady=2)
+        ttk.Button(right_panel, text="View Highest Debt", command=self.view_highest_debt).pack(fill=tk.X, pady=2)
         
         # Load initial data
         self.load_organizations_financial()
@@ -400,355 +355,168 @@ class MainWindow(tk.Frame):
         # Load initial data
         self.load_report_filters()
     
-    def create_student_management_tab(self):
-        """Create the student management tab"""
-        student_frame = ttk.Frame(self.notebook)
-        self.notebook.add(student_frame, text="Student Management")
-        
-        # Search frame
-        search_frame = ttk.Frame(student_frame)
-        search_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
-        self.student_search_var = tk.StringVar()
-        self.student_search_var.trace('w', self.filter_student_data)  # Bind to search box changes
-        student_search_entry = ttk.Entry(search_frame, textvariable=self.student_search_var)
-        student_search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # Buttons frame
-        buttons_frame = ttk.Frame(student_frame)
-        buttons_frame.pack(pady=10)
-        
-        ttk.Button(buttons_frame, text="Add Student", command=self.add_student).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Edit Student", command=self.edit_student).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Delete Student", command=self.delete_student).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Refresh", command=self.refresh_students).pack(side=tk.LEFT, padx=5)
-        
-        # Students table
-        columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing']
-        self.students_table = DataTable(student_frame, columns)
-        self.students_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Store original student data for filtering
-        self.original_student_data = []
-        
-        # Load initial data
-        self.refresh_students()
-    
-    def create_organization_tab(self):
-        """Create the organization management tab"""
-        org_frame = ttk.Frame(self.notebook)
-        self.notebook.add(org_frame, text="Organization Management")
-        
-        # Search frame
-        search_frame = ttk.Frame(org_frame)
-        search_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
-        self.org_search_var = tk.StringVar()
-        self.org_search_var.trace('w', self.filter_organization_data)  # Bind to search box changes
-        org_search_entry = ttk.Entry(search_frame, textvariable=self.org_search_var)
-        org_search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # Buttons frame
-        buttons_frame = ttk.Frame(org_frame)
-        buttons_frame.pack(pady=10)
-        
-        ttk.Button(buttons_frame, text="Add Organization", command=self.add_organization).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Edit Organization", command=self.edit_organization).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Delete Organization", command=self.delete_organization).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="Refresh", command=self.refresh_organizations).pack(side=tk.LEFT, padx=5)
-        
-        # Organizations table
-        columns = ['Organization ID', 'Organization Name']
-        self.organizations_table = DataTable(org_frame, columns)
-        self.organizations_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Store original organization data for filtering
-        self.original_org_data = []
-        
-        # Load initial data
-        self.refresh_organizations()
-    
     def create_terms(self):
-        """Create a new term for the organization"""
+        """Create terms for active members for the selected semester and academic year"""
         org_name = self.fin_org_combo.get()
-        if not org_name:
-            messagebox.showwarning("Warning", "Please select an organization")
+        semester = self.semester_combo.get()
+        acad_year = self.acad_year_combo.get()
+        
+        if not all([org_name, semester, acad_year]):
+            messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
             return
-            
-        # Get term details
-        fields = [
-            {'name': 'semester', 'label': 'Semester', 'type': 'combobox', 
-             'values': ['1st', '2nd', 'Summer']},
-            {'name': 'acad_year', 'label': 'Academic Year', 'type': 'entry', 
-             'default': f"{datetime.now().year}-{datetime.now().year + 1}"},
-            {'name': 'term_start', 'label': 'Term Start Date', 'type': 'entry', 
-             'default': datetime.now().strftime('%Y-%m-%d')}
-        ]
         
-        dialog = FormDialog(self, "Create Term", fields)
-        self.wait_window(dialog)
+        if not messagebox.askyesno("Confirm", f"Create terms for {org_name} - {semester} {acad_year}?"):
+            return
         
-        if not dialog.result:
-            return  # User cancelled
-            
         try:
-            semester = dialog.result['semester']
-            acad_year = dialog.result['acad_year']
-            term_start = datetime.strptime(dialog.result['term_start'], '%Y-%m-%d').date()
-            term_end = term_start + timedelta(days=150)  # Automatically set end date to 150 days after start
-            
             # Get organization ID
             orgs = self.db.get_all_organizations()
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
             
-            # Check if term already exists for this organization
-            query = """
-            SELECT COUNT(*) FROM term t
-            JOIN membership m ON t.membership_id = m.membership_id
-            WHERE m.org_id = ? AND t.semester = ? AND t.acad_year = ?
-            """
-            result = self.db.execute_query(query, (org_id, semester, acad_year))
+            # Get all active members
+            members = self.db.get_members_by_organization(org_id)
+            active_members = [m for m in members if m['status'] == 'active']
             
-            if result and result[0][0] > 0:
-                messagebox.showwarning("Warning", f"Term already exists for {semester} {acad_year}")
-                return
+            # Create terms for each active member
+            from datetime import date, timedelta
+            current_date = date.today()
+            term_end = current_date + timedelta(days=180)
+            fee_due = current_date + timedelta(days=30)
             
-            messagebox.showinfo("Success", f"Term created for {semester} {acad_year}\nStart: {term_start}\nEnd: {term_end}")
+            terms_created = 0
+            for member in active_members:
+                # Check if term already exists
+                query = """
+                SELECT COUNT(*) FROM term t
+                JOIN membership m ON t.membership_id = m.membership_id
+                WHERE m.membership_id = ? AND t.semester = ? AND t.acad_year = ?
+                """
+                result = self.db.execute_query(query, (member['membership_id'], semester, acad_year))
+                if result and result[0][0] > 0:
+                    continue  # Term already exists
+                
+                # Create new term
+                term = Term(
+                    term_id=None,
+                    semester=semester,
+                    term_start=current_date,
+                    term_end=term_end,
+                    acad_year=acad_year,
+                    fee_amount=1000.0,  # Active member fee
+                    fee_due=fee_due,
+                    membership_id=member['membership_id']
+                )
+                
+                if self.db.add_term(term):
+                    terms_created += 1
+            
+            messagebox.showinfo("Success", f"Created {terms_created} new terms")
             self.load_financial_data()
             
-        except ValueError as e:
-            messagebox.showerror("Error", f"Invalid input: {str(e)}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to create term: {str(e)}")
-
-    def add_member_to_term(self):
-        """Add a member to an existing term"""
-        org_name = self.org_combo.get()
-        if not org_name:
-            messagebox.showwarning("Warning", "Please select an organization")
-            return
-            
-        # Get organization ID
-        orgs = self.db.get_all_organizations()
-        org_id = next(org.org_id for org in orgs if org.org_name == org_name)
-        
-        # Get all members for this organization
-        members = self.db.get_members_by_organization(org_id)
-        if not members:
-            messagebox.showwarning("Warning", "No members found in this organization")
-            return
-            
-        # Create list of member options
-        member_options = [f"{m['student_id']} - {m['first_name']} {m['last_name']}" for m in members]
-        
-        # Create dialog for member selection, term details, and role assignment
-        fields = [
-            {'name': 'member', 'label': 'Select Member', 'type': 'combobox', 'values': member_options},
-            {'name': 'semester', 'label': 'Semester', 'type': 'combobox', 
-             'values': ['1st', '2nd', 'Summer']},
-            {'name': 'acad_year', 'label': 'Academic Year', 'type': 'entry', 
-             'default': f"{datetime.now().year}-{datetime.now().year + 1}"},
-            {'name': 'term_start', 'label': 'Term Start Date', 'type': 'entry', 
-             'default': datetime.now().strftime('%Y-%m-%d')},
-            {'name': 'role', 'label': 'Role', 'type': 'combobox', 
-             'values': ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer']},
-            {'name': 'fee_amount', 'label': 'Fee Amount', 'type': 'entry', 'default': '1000.00'}
-        ]
-        
-        dialog = FormDialog(self, "Add Member to Term", fields)
-        self.wait_window(dialog)
-        
-        if not dialog.result:
-            return  # User cancelled
-            
-        try:
-            # Extract student ID from the selected option
-            selected_member = dialog.result['member']
-            student_id = int(selected_member.split(' - ')[0])
-            semester = dialog.result['semester']
-            acad_year = dialog.result['acad_year']
-            
-            # Get membership ID for the selected member
-            membership_id = next(m['membership_id'] for m in members if m['student_id'] == student_id)
-            
-            # Check if member already has a term for this semester/year
-            query = """
-            SELECT COUNT(*) FROM term t
-            WHERE t.membership_id = ? AND t.semester = ? AND t.acad_year = ?
-            """
-            result = self.db.execute_query(query, (membership_id, semester, acad_year))
-            
-            if result and result[0][0] > 0:
-                messagebox.showwarning("Warning", f"Member already has a term for {semester} {acad_year}")
-                return
-            
-            # Set term dates
-            term_start = datetime.strptime(dialog.result['term_start'], '%Y-%m-%d').date()
-            term_end = term_start + timedelta(days=150)  # 150 days term duration
-            
-            # Create term for member
-            term = Term(
-                term_id=None,
-                semester=semester,
-                term_start=term_start,
-                term_end=term_end,
-                acad_year=acad_year,
-                fee_amount=float(dialog.result['fee_amount']),
-                fee_due=term_end,
-                role=dialog.result['role'],
-                membership_id=membership_id
-            )
-            
-            if self.db.add_term(term):
-                messagebox.showinfo("Success", f"Added member to term {semester} {acad_year}")
-                self.load_term_data()
-            else:
-                messagebox.showerror("Error", "Failed to add member to term")
-            
-        except ValueError as e:
-            messagebox.showerror("Error", f"Invalid input: {str(e)}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to add member to term: {str(e)}")
+            messagebox.showerror("Error", f"Failed to create terms: {str(e)}")
     
     def load_organizations(self):
-        """Load organizations and initialize combo boxes for the membership tab"""
         orgs = self.db.get_all_organizations()
         self.org_combo['values'] = [org.org_name for org in orgs]
         if orgs:
             self.org_combo.set(orgs[0].org_name)
-        
-        # Populate academic years for membership terms subtab
-        years = self.db.get_available_academic_years()
-        self.term_acad_year_combo['values'] = years
-        if years:
-            self.term_acad_year_combo.set(years[0])
-        self.term_semester_combo.set("1st")
-        
-        # Load initial members data
-        self.load_members()
     
     def load_organizations_financial(self):
-        """Load organizations and initialize combo boxes for the financial tab"""
         orgs = self.db.get_all_organizations()
         self.fin_org_combo['values'] = [org.org_name for org in orgs]
         if orgs:
             self.fin_org_combo.set(orgs[0].org_name)
         
-        # Get academic years from database
-        years = self.db.get_available_academic_years()
+        # Set academic years (last 5 years)
+        current_year = datetime.now().year
+        years = [f"{year}-{year+1}" for year in range(current_year-4, current_year+1)]
         self.acad_year_combo['values'] = years
-        if years:
-            self.acad_year_combo.set(years[0])
+        self.acad_year_combo.set(years[-1])
         
         # Set semester
         self.semester_combo.set("1st")
-        
-        # Load initial financial data
-        self.load_financial_data()
     
     def load_members(self, event=None):
         try:
             org_name = self.org_combo.get()
             if not org_name:
                 return
+            
             print(f"Loading members for organization: {org_name}")  # Debug print
+            
             orgs = self.db.get_all_organizations()
             if not orgs:
                 messagebox.showwarning("Warning", "No organizations found")
                 return
+                
+            print(f"Found organizations: {[org.org_name for org in orgs]}")  # Debug print
+            
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+            print(f"Selected org_id: {org_id}")  # Debug print
+            
             members = self.db.get_members_by_organization(org_id)
             print(f"Found members: {members}")  # Debug print
+            
             # Clear existing items
             self.member_table.clear()
+            
             # Update table columns to match the data
-            columns = ['Student ID', 'First Name', 'Last Name', 'Gender', 'Degree Program', 'Standing', 'Status', 'Batch', 'Committee', 'Membership ID']
+            columns = ['Student ID', 'First Name', 'Last Name', 'Status', 'Role', 'Batch']
             self.member_table.tree['columns'] = columns
             for col in columns:
                 self.member_table.tree.heading(col, text=col)
                 self.member_table.tree.column(col, width=100)
-            # Hide Membership ID column
-            self.member_table.tree.column('Membership ID', width=0, stretch=False, minwidth=0)
-            self.member_table.tree.heading('Membership ID', text='', anchor='w')
+            
             # Insert new data
             if members:
                 formatted_members = []
                 for member in members:
-                    status = member['status']
-                    if member['latest_semester'] and member['latest_acad_year']:
-                        if member['status'] in ['expelled', 'alumni']:
-                            status = f"{status} (Last Term: {member['latest_semester']} {member['latest_acad_year']})"
-                        else:
-                            status = f"{status} (Latest: {member['latest_semester']} {member['latest_acad_year']})"
                     formatted_member = {
                         'Student ID': member['student_id'],
                         'First Name': member['first_name'],
                         'Last Name': member['last_name'],
-                        'Gender': member['gender'],
-                        'Degree Program': member['degree_program'],
-                        'Standing': member.get('standing', ''),
-                        'Status': status,
-                        'Batch': member['batch'],
-                        'Committee': member.get('committee', ''),
-                        'Membership ID': member.get('membership_id', '')
+                        'Status': member['status'],
+                        'Role': member['committee'],
+                        'Batch': member['batch']
                     }
                     formatted_members.append(formatted_member)
+                
                 print(f"Formatted members for display: {formatted_members}")  # Debug print
-                
-                # Store the original data for filtering
-                self.original_member_data = formatted_members
-                
-                # Apply any existing search filter
-                search_text = self.member_search_var.get().lower()
-                if search_text:
-                    formatted_members = [
-                        row for row in formatted_members
-                        if search_text in f"{row['First Name']} {row['Last Name']}".lower()
-                    ]
-                
                 self.member_table.insert_data(formatted_members)
             else:
                 print("No members found to display")  # Debug print
-                self.original_member_data = []
+            
+            # Force update of the UI
             self.member_table.update_idletasks()
             self.root.update_idletasks()
+            
+            # Update status bar
             self.status_bar.config(text=f"Loaded {len(members) if members else 0} members for {org_name}")
+            
         except Exception as e:
             print(f"Error loading members: {e}")  # Debug print
             messagebox.showerror("Error", f"Failed to load members: {str(e)}")
             self.status_bar.config(text="Error loading members")
     
     def load_financial_data(self):
-        """Load data specifically for the financial tab"""
         try:
             org_name = self.fin_org_combo.get()
             semester = self.semester_combo.get()
             acad_year = self.acad_year_combo.get()
+            
             if not all([org_name, semester, acad_year]):
                 messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
                 return
+            
             orgs = self.db.get_all_organizations()
             if not orgs:
                 messagebox.showwarning("Warning", "No organizations found")
                 return
+                
             org_id = next(org.org_id for org in orgs if org.org_name == org_name)
             
-            # Get members for the selected semester
-            query = """
-            SELECT s.student_id, s.first_name, s.last_name, 
-                   m.mem_status, t.fee_amount, 
-                   COALESCE(SUM(p.amount), 0) as total_paid,
-                   (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance,
-                   t.fee_due, t.term_id
-            FROM student s
-            JOIN membership m ON s.student_id = m.student_id
-            JOIN organization org ON m.org_id = org.org_id
-            JOIN term t ON m.membership_id = t.membership_id
-            LEFT JOIN payment p ON t.term_id = p.term_id
-            WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
-            GROUP BY s.student_id, t.term_id
-            """
-            results = self.db.execute_query(query, (org_id, semester, acad_year))
+            members = self.db.get_members_with_unpaid_fees(org_id, semester, acad_year)
             
             # Clear existing items
             self.fee_table.clear()
@@ -761,42 +529,28 @@ class MainWindow(tk.Frame):
                 self.fee_table.tree.column(col, width=100)
             
             # Insert new data
-            if results:
+            if members:
                 formatted_members = []
-                for row in results:
+                for member in members:
                     formatted_member = {
-                        'Student ID': row[0],
-                        'Name': f"{row[1]} {row[2]}",
-                        'Status': row[3],
-                        'Fee Amount': f"₱{row[4]:.2f}",
-                        'Amount Paid': f"₱{row[5]:.2f}",
-                        'Balance': f"₱{row[6]:.2f}",
-                        'Due Date': row[7].strftime('%Y-%m-%d') if row[7] else 'N/A',
-                        'term_id': row[8]  # Store term_id for reference
+                        'Student ID': member['student_id'],
+                        'Name': f"{member['first_name']} {member['last_name']}",
+                        'Status': member['status'],
+                        'Fee Amount': f"₱{member['fee_amount']:.2f}",
+                        'Amount Paid': f"₱{member['total_paid']:.2f}",
+                        'Balance': f"₱{member['balance']:.2f}",
+                        'Due Date': member.get('due_date', 'N/A')
                     }
                     formatted_members.append(formatted_member)
                 
-                # Store original data for filtering
-                self.original_financial_data = formatted_members
-                
-                # Apply any existing search filter
-                search_text = self.financial_search_var.get().lower()
-                if search_text:
-                    formatted_members = [
-                        row for row in formatted_members
-                        if search_text in row['Name'].lower()
-                    ]
-                
                 self.fee_table.insert_data(formatted_members)
-            else:
-                self.original_financial_data = []
             
             # Force update of the UI
             self.fee_table.update_idletasks()
             self.root.update_idletasks()
             
             # Update status bar
-            self.status_bar.config(text=f"Loaded {len(results) if results else 0} members for {semester} {acad_year}")
+            self.status_bar.config(text=f"Loaded {len(members) if members else 0} members with unpaid fees for {org_name}")
             
         except Exception as e:
             print(f"Error loading financial data: {e}")  # Debug print
@@ -804,16 +558,14 @@ class MainWindow(tk.Frame):
             self.status_bar.config(text="Error loading financial data")
     
     def add_member(self):
-        # Get all students
-        students = self.db.get_all_students()
-        if not students:
-            messagebox.showwarning("Warning", "No students available. Please add students first.")
-            return
-
-        # Create a list of student options for the combobox
-        student_options = [f"{s.student_id} - {s.first_name} {s.last_name}" for s in students]
-        
         fields = [
+            {'name': 'first_name', 'label': 'First Name', 'type': 'entry'},
+            {'name': 'last_name', 'label': 'Last Name', 'type': 'entry'},
+            {'name': 'gender', 'label': 'Gender', 'type': 'combobox', 'values': ['Male', 'Female', 'Other']},
+            {'name': 'degree_program', 'label': 'Degree Program', 'type': 'entry'},
+            {'name': 'standing', 'label': 'Standing', 'type': 'combobox', 'values': ['Freshman', 'Sophomore', 'Junior', 'Senior']},
+            {'name': 'committee', 'label': 'Role', 'type': 'combobox', 'values': ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer']},
+            {'name': 'batch', 'label': 'Batch', 'type': 'entry'}
             {'name': 'student', 'label': 'Select Student', 'type': 'combobox', 'values': student_options},
             {'name': 'committee', 'label': 'Committee', 'type': 'combobox', 
              'values': ['Finance', 'Secretariat', 'Documentation', 'Externals', 
@@ -833,15 +585,34 @@ class MainWindow(tk.Frame):
         
         if dialog.result:
             try:
-                # Extract student ID from the selected option
-                selected_student = dialog.result['student']
-                student_id = int(selected_student.split(' - ')[0])
+                # Create student
+                student = Student(
+                    student_id=None,
+                    first_name=dialog.result['first_name'],
+                    last_name=dialog.result['last_name'],
+                    gender=dialog.result['gender'],
+                    degree_program=dialog.result['degree_program'],
+                    standing=dialog.result['standing']
+                )
+                
+                # Add student to database
+                if not self.db.add_student(student):
+                    raise Exception("Failed to add student")
+                
+                # Get the student ID
+                students = self.db.get_all_students()
+                student_id = next(s.student_id for s in students if s.first_name == student.first_name and s.last_name == student.last_name)
+                
+                # Add to member table
+                if not self.db.add_member(student_id):
+                    raise Exception("Failed to add member")
                 
                 # Get organization ID
                 org_name = self.org_combo.get()
                 orgs = self.db.get_all_organizations()
                 org_id = next(org.org_id for org in orgs if org.org_name == org_name)
                 
+                # Create membership
                 # Check if student is already a member
                 query = """
                 SELECT COUNT(*) FROM membership 
@@ -865,6 +636,41 @@ class MainWindow(tk.Frame):
                 if not self.db.add_membership(membership):
                     raise Exception("Failed to add membership")
                 
+                # Get the membership ID
+                members = self.db.get_members_by_organization(org_id)
+                membership_id = next(m['membership_id'] for m in members if m['student_id'] == student_id)
+                
+                # Determine current semester and academic year
+                from datetime import date, timedelta
+                current_date = date.today()
+                month = current_date.month
+                
+                if month >= 6 and month <= 10:
+                    semester = "1st"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                elif month >= 11 or month <= 3:
+                    semester = "2nd"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                else:
+                    semester = "Summer"
+                    acad_year = f"{current_date.year}-{current_date.year + 1}"
+                
+                # Create term with fee for new active member
+                term = Term(
+                    term_id=None,
+                    semester=semester,
+                    term_start=current_date,
+                    term_end=current_date + timedelta(days=180),
+                    acad_year=acad_year,
+                    fee_amount=1000.0,  # Active member fee
+                    fee_due=current_date + timedelta(days=30),
+                    membership_id=membership_id
+                )
+                
+                if not self.db.add_term(term):
+                    raise Exception("Failed to create term")
+                
+                messagebox.showinfo("Success", "Member added successfully with initial membership fee")
                 # Get the membership ID of the newly created membership
                 query = """
                 SELECT membership_id FROM membership 
@@ -903,6 +709,7 @@ class MainWindow(tk.Frame):
     
     def edit_member(self):
         selected = self.member_table.get_selected_item()
+        selected = self.member_table.get_selected_item()
         if not selected:
             messagebox.showwarning("Warning", "Please select a member to edit")
             return
@@ -931,6 +738,12 @@ class MainWindow(tk.Frame):
         current_committee = result[0][0]
         
         fields = [
+            {'name': 'committee', 'label': 'Role', 'type': 'combobox', 
+             'values': ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer'],
+             'default': selected['Role']},
+            {'name': 'mem_status', 'label': 'Status', 'type': 'combobox',
+             'values': ['active', 'inactive', 'suspended', 'expelled', 'alumni'],
+             'default': selected['Status']}
             {'name': 'committee', 'label': 'Committee', 'type': 'combobox', 
              'values': ['Finance', 'Secretariat', 'Documentation', 'Externals', 
                        'Membership', 'Logistics', 'Education & Research', 'Publication'],
@@ -942,12 +755,18 @@ class MainWindow(tk.Frame):
         
         if dialog.result:
             try:
+                # Update membership status
+                if not self.db.update_membership_status(selected['membership_id'], dialog.result['mem_status']):
+                    raise Exception("Failed to update membership status")
+                
                 # Update committee in membership table
                 if not self.db.update_membership_committee(membership_id, dialog.result['committee']):
                     raise Exception("Failed to update committee")
                 
                 self.load_members()  # Refresh the members table
                 messagebox.showinfo("Success", "Member updated successfully")
+                self.load_members()
+                
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to update member: {str(e)}")
     
@@ -959,11 +778,13 @@ class MainWindow(tk.Frame):
         
         if messagebox.askyesno("Confirm", "Are you sure you want to remove this member?"):
             try:
-                membership_id = int(selected['Membership ID'])
-                if not self.db.delete_membership(membership_id):
-                    raise Exception("Failed to delete membership")
-                self.load_members()
+                # Delete student (this will cascade delete related records)
+                if not self.db.delete_student(selected['student_id']):
+                    raise Exception("Failed to delete student")
+                
                 messagebox.showinfo("Success", "Member removed successfully")
+                self.load_members()
+                
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to remove member: {str(e)}")
     
@@ -989,6 +810,7 @@ class MainWindow(tk.Frame):
             ttk.Label(info_frame, text=f"Student ID: {selected['Student ID']}").pack(anchor=tk.W)
             ttk.Label(info_frame, text=f"Name: {selected['First Name']} {selected['Last Name']}").pack(anchor=tk.W)
             ttk.Label(info_frame, text=f"Status: {selected['Status']}").pack(anchor=tk.W)
+            ttk.Label(info_frame, text=f"Role: {selected['Role']}").pack(anchor=tk.W)
             ttk.Label(info_frame, text=f"Batch: {selected['Batch']}").pack(anchor=tk.W)
             
             # Unpaid fees
@@ -1003,76 +825,14 @@ class MainWindow(tk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load member details: {str(e)}")
     
-    def show_receipt(self, payment: Payment, member_info: dict, term_info: dict):
-        """Display a simple receipt for the payment"""
-        try:
-            # Create a new window for the receipt
-            receipt_window = tk.Toplevel(self)
-            receipt_window.title("Payment Receipt")
-            receipt_window.geometry("400x500")
-            
-            # Create a frame for the receipt content
-            receipt_frame = ttk.Frame(receipt_window, padding="20")
-            receipt_frame.pack(fill=tk.BOTH, expand=True)
-            
-            # Organization header
-            org_name = self.fin_org_combo.get()
-            ttk.Label(receipt_frame, text=org_name, font=('Helvetica', 14, 'bold')).pack(pady=(0, 10))
-            ttk.Label(receipt_frame, text="PAYMENT RECEIPT", font=('Helvetica', 12, 'bold')).pack(pady=(0, 20))
-            
-            # Receipt details
-            details_frame = ttk.Frame(receipt_frame)
-            details_frame.pack(fill=tk.X, pady=10)
-            
-            # Member details
-            ttk.Label(details_frame, text="Member Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Name: {member_info['Name']}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Student ID: {member_info['Student ID']}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Status: {member_info['Status']}").pack(anchor=tk.W)
-            
-            # Term details
-            ttk.Label(details_frame, text="\nTerm Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Semester: {term_info['semester']}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Academic Year: {term_info['acad_year']}").pack(anchor=tk.W)
-            
-            # Payment details
-            ttk.Label(details_frame, text="\nPayment Details:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Date: {payment.payment_date.strftime('%Y-%m-%d')}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Fee Amount: ₱{term_info['fee_amount']:.2f}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Amount Paid: ₱{payment.amount:.2f}").pack(anchor=tk.W)
-            ttk.Label(details_frame, text=f"Balance: ₱{float(term_info['fee_amount']) - payment.amount:.2f}").pack(anchor=tk.W)
-            
-            # Add a separator
-            ttk.Separator(receipt_frame, orient='horizontal').pack(fill=tk.X, pady=20)
-            
-            # Add footer
-            ttk.Label(receipt_frame, text="Thank you for your payment!", font=('Helvetica', 10, 'italic')).pack()
-            ttk.Label(receipt_frame, text="This receipt serves as proof of payment.").pack()
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to show receipt: {str(e)}")
-
     def record_payment(self):
         selected = self.fee_table.get_selected_item()
         if not selected:
             messagebox.showwarning("Warning", "Please select a member to record payment")
             return
         
-        # Get the current balance
-        try:
-            balance = float(selected['Balance'].replace('₱', '').replace(',', ''))
-            if balance <= 0:
-                messagebox.showwarning("Warning", "This member has no outstanding balance")
-                return
-        except (ValueError, KeyError):
-            messagebox.showerror("Error", "Could not determine current balance")
-            return
-        
-        # Debug print to check selected item
-        print(f"Selected item: {selected}")
-        
         fields = [
-            {'name': 'amount', 'label': 'Amount', 'type': 'entry', 'default': str(balance)},
+            {'name': 'amount', 'label': 'Amount', 'type': 'entry'},
             {'name': 'payment_date', 'label': 'Payment Date', 'type': 'entry', 'default': datetime.now().strftime('%Y-%m-%d')}
         ]
         
@@ -1081,70 +841,22 @@ class MainWindow(tk.Frame):
         
         if dialog.result:
             try:
-                from decimal import Decimal
-                amount = Decimal(str(dialog.result['amount']))
-                if amount <= 0:
-                    messagebox.showerror("Error", "Payment amount must be greater than 0")
-                    return
-                if amount > Decimal(str(balance)):
-                    messagebox.showerror("Error", "Payment amount cannot exceed the current balance")
-                    return
-                
-                # Debug print to check term_id
-                print(f"Term ID from selected item: {selected.get('term_id')}")
-                term_id = selected['term_id']
-                
-                # Create payment record
+                # Create payment
                 payment = Payment(
                     payment_id=None,
-                    amount=float(amount),  # Convert back to float for storage
+                    payment_status='completed',
+                    amount=float(dialog.result['amount']),
                     payment_date=datetime.strptime(dialog.result['payment_date'], '%Y-%m-%d').date(),
-                    term_id=term_id
+                    term_id=selected['term_id']
                 )
                 
                 # Add payment
                 if not self.db.add_payment(payment):
                     raise Exception("Failed to record payment")
                 
-                # Update payment status in term table
-                # First check if this payment completes the balance
-                query = """
-                SELECT t.fee_amount, COALESCE(SUM(p.amount), 0) as total_paid,
-                       t.semester, t.acad_year, t.fee_due
-                FROM term t
-                LEFT JOIN payment p ON t.term_id = p.term_id
-                WHERE t.term_id = ?
-                GROUP BY t.term_id
-                """
-                result = self.db.execute_query(query, (term_id,))
-                
-                if result:
-                    fee_amount = Decimal(str(result[0][0]))
-                    total_paid = Decimal(str(result[0][1]))
-                    new_total_paid = total_paid + amount
-                    
-                    # Update payment status based on whether the balance is fully paid
-                    payment_status = "paid" if new_total_paid >= fee_amount else "partial"
-                    update_query = "UPDATE term SET payment_status = ? WHERE term_id = ?"
-                    if not self.db.execute_update(update_query, (payment_status, term_id)):
-                        raise Exception("Failed to update payment status")
-                    
-                    # Show success message first
-                    messagebox.showinfo("Success", "Payment recorded successfully")
-                    
-                    # Then show receipt
-                    term_info = {
-                        'semester': result[0][2],
-                        'acad_year': result[0][3],
-                        'fee_amount': float(fee_amount)
-                    }
-                    self.show_receipt(payment, selected, term_info)
-                
-                # Refresh the financial data
+                messagebox.showinfo("Success", "Payment recorded successfully")
                 self.load_financial_data()
                 
-            except ValueError as e:
-                messagebox.showerror("Error", f"Invalid input: {str(e)}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to record payment: {str(e)}")
     
@@ -1403,302 +1115,149 @@ class MainWindow(tk.Frame):
             })
         self.report_table.insert_data(formatted_data)
     
+    def create_viewmem_tab(self):
+        self.reports_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.reports_frame, text="Reports (View Members)")
+
+        # Organization dropdown
+        ttk.Label(self.reports_frame, text="Organization:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        self.org_combobox = ttk.Combobox(self.reports_frame, state="readonly", width=30)
+        self.org_combobox.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        # Filters labels and comboboxes
+        filter_labels = ["Status", "Gender", "Degree Program", "Batch", "Committee"]
+        self.filter_combos = {}
+        for i, label in enumerate(filter_labels):
+            ttk.Label(self.reports_frame, text=f"{label}:").grid(row=i+1, column=0, padx=5, pady=5, sticky=tk.W)
+            combo = ttk.Combobox(self.reports_frame, state="readonly", width=30)
+            combo.grid(row=i+1, column=1, padx=5, pady=5, sticky=tk.W)
+            self.filter_combos[label.lower().replace(" ", "_")] = combo
+
+        # View Members button
+        self.view_members_btn = ttk.Button(self.reports_frame, text="View Members", command=self.view_members)
+        self.view_members_btn.grid(row=6, column=0, columnspan=2, pady=10)
+
+        # Treeview for results
+        columns = ("Name", "Role", "Status", "Gender", "Degree Program", "Batch")
+        self.members_tree = ttk.Treeview(self.reports_frame, columns=columns, show="headings", height=20)
+        for col in columns:
+            self.members_tree.heading(col, text=col)
+            self.members_tree.column(col, width=150, anchor=tk.W)
+        self.members_tree.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(self.reports_frame, orient=tk.VERTICAL, command=self.members_tree.yview)
+        self.members_tree.configure(yscroll=scrollbar.set)
+        scrollbar.grid(row=7, column=3, sticky='ns', pady=5)
+
+        # Make the treeview expand
+        self.reports_frame.rowconfigure(7, weight=1)
+        self.reports_frame.columnconfigure(2, weight=1)
+
+        # Load dropdown data
+        self.load_org_for_view()
+        self.load_filters()
+    
+    def load_org_for_view(self):
+        try:
+            # Assuming your DatabaseManager has this method
+            orgs = self.db.execute_query("SELECT org_id, org_name FROM organization ORDER BY org_name")
+            self.org_map = {org[1]: org[0] for org in orgs}  # name -> id map
+            self.org_combobox['values'] = list(self.org_map.keys())
+            if orgs:
+                self.org_combobox.current(0)  # Select first org by default
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load organizations: {e}")
+
+    def load_filters(self):
+        # Fetch distinct values for each filter from the database
+        # Use "All" as default first value to mean no filter on that field
+
+        def fetch_distinct(column):
+            query = f"SELECT DISTINCT {column} FROM membership ORDER BY {column}"
+            results = self.db.execute_query(query)
+            # Flatten and filter out None or empty strings, then add "All"
+            values = ["All"] + sorted({row[0] for row in results if row[0]})
+            return values
+
+        self.filter_combos['status']['values'] = fetch_distinct("mem_status")
+        self.filter_combos['gender']['values'] = ["All"] + sorted({row[0] for row in self.db.execute_query("SELECT DISTINCT gender FROM student WHERE gender IS NOT NULL")})
+        self.filter_combos['degree_program']['values'] = ["All"] + sorted({row[0] for row in self.db.execute_query("SELECT DISTINCT degree_program FROM student WHERE degree_program IS NOT NULL")})
+        self.filter_combos['batch']['values'] = fetch_distinct("batch")
+        self.filter_combos['committee']['values'] = fetch_distinct("committee")
+
+        # Set all combos to "All" by default
+        for combo in self.filter_combos.values():
+            combo.current(0)
+
+    
+    def view_members(self):
+        org_name = self.org_combobox.get()
+        if not org_name:
+            messagebox.showwarning("Warning", "Please select an organization")
+            return
+
+        org_id = self.org_map.get(org_name)
+        if not org_id:
+            messagebox.showerror("Error", "Selected organization not found")
+            return
+
+        # Build query with optional filters
+        query = """
+            SELECT 
+                s.first_name, s.last_name,
+                m.committee AS role,
+                m.mem_status AS status,
+                s.gender,
+                s.degree_program,
+                m.batch
+            FROM membership m
+            JOIN student s ON m.student_id = s.student_id
+            WHERE m.org_id = ?
+        """
+        params = [org_id]
+
+        # Add filters if not "All"
+        filters = {
+            "m.mem_status": self.filter_combos['status'].get(),
+            "s.gender": self.filter_combos['gender'].get(),
+            "s.degree_program": self.filter_combos['degree_program'].get(),
+            "m.batch": self.filter_combos['batch'].get(),
+            "m.committee": self.filter_combos['committee'].get(),
+        }
+
+        for col, val in filters.items():
+            if val != "All":
+                query += f" AND {col} = ?"
+                params.append(val)
+
+        query += " ORDER BY role, s.last_name, s.first_name"
+
+        try:
+            members = self.db.execute_query(query, tuple(params))
+
+            # Clear previous rows
+            for row in self.members_tree.get_children():
+                self.members_tree.delete(row)
+
+            for member in members:
+                name = f"{member[0]} {member[1]}"
+                role = member[2] if member[2] else "Member"
+                status = member[3]
+                gender = member[4]
+                degree = member[5]
+                batch = member[6]
+
+                self.members_tree.insert("", "end", values=(name, role, status, gender, degree, batch))
+
+            self.status_bar.config(text=f"Loaded {len(members)} members from {org_name}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load members: {e}")
+
+
     def show_about(self):
         messagebox.showinfo("About", "Organization Management System\nVersion 1.0")
-    
-    def edit_term_dates(self):
-        """Edit the start and end dates of the selected term"""
-        try:
-            org_name = self.org_combo.get()
-            semester = self.term_semester_combo.get()
-            acad_year = self.term_acad_year_combo.get()
-            
-            if not all([org_name, semester, acad_year]):
-                messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
-                return
-            
-            # Get organization ID
-            orgs = self.db.get_all_organizations()
-            org_id = next(org.org_id for org in orgs if org.org_name == org_name)
-            
-            # Get current term dates
-            query = """
-            SELECT term_start, term_end
-            FROM term t
-            JOIN membership m ON t.membership_id = m.membership_id
-            WHERE m.org_id = ? AND t.semester = ? AND t.acad_year = ?
-            LIMIT 1
-            """
-            result = self.db.execute_query(query, (org_id, semester, acad_year))
-            
-            if not result:
-                messagebox.showwarning("Warning", f"No term found for {semester} {acad_year}")
-                return
-            
-            current_start, current_end = result[0]
-            
-            # Create dialog for new dates
-            fields = [
-                {'name': 'term_start', 'label': 'Term Start Date', 'type': 'entry', 'default': current_start.strftime('%Y-%m-%d')},
-                {'name': 'term_end', 'label': 'Term End Date', 'type': 'entry', 'default': current_end.strftime('%Y-%m-%d')}
-            ]
-            
-            dialog = FormDialog(self, "Edit Term Dates", fields)
-            self.wait_window(dialog)
-            
-            if dialog.result:
-                try:
-                    new_start = datetime.strptime(dialog.result['term_start'], '%Y-%m-%d').date()
-                    new_end = datetime.strptime(dialog.result['term_end'], '%Y-%m-%d').date()
-                    
-                    if new_start >= new_end:
-                        messagebox.showerror("Error", "Start date must be before end date")
-                        return
-                    
-                    # Get count of terms to be updated
-                    count_query = """
-                    SELECT COUNT(*) 
-                    FROM term t
-                    JOIN membership m ON t.membership_id = m.membership_id
-                    WHERE m.org_id = ? AND t.semester = ? AND t.acad_year = ?
-                    """
-                    count_result = self.db.execute_query(count_query, (org_id, semester, acad_year))
-                    term_count = count_result[0][0] if count_result else 0
-                    
-                    # Confirm update
-                    if not messagebox.askyesno("Confirm", 
-                        f"Update term dates for {semester} {acad_year}?\n"
-                        f"This will affect {term_count} members.\n"
-                        f"Start: {new_start}\n"
-                        f"End: {new_end}\n"
-                        f"Due date will be set to the end date"):
-                        return
-                    
-                    # Update term dates for all members in this term
-                    update_query = """
-                    UPDATE term t
-                    JOIN membership m ON t.membership_id = m.membership_id
-                    SET t.term_start = ?, t.term_end = ?, t.fee_due = ?
-                    WHERE m.org_id = ? AND t.semester = ? AND t.acad_year = ?
-                    """
-                    if self.db.execute_update(update_query, (new_start, new_end, new_end, org_id, semester, acad_year)):
-                        messagebox.showinfo("Success", f"Updated term dates for {term_count} members")
-                        # Reload term data to show updated dates
-                        self.load_term_data()
-                    else:
-                        messagebox.showerror("Error", "Failed to update term dates")
-                    
-                except ValueError:
-                    messagebox.showerror("Error", "Invalid date format. Please use YYYY-MM-DD")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to update term dates: {str(e)}")
-    
-    def add_organization(self):
-        """Add a new organization"""
-        fields = [
-            {'name': 'org_name', 'label': 'Organization Name:', 'type': 'entry'}
-        ]
-        
-        dialog = FormDialog(self, "Add Organization", fields)
-        self.wait_window(dialog)
-        
-        if dialog.result and dialog.result['org_name']:
-            try:
-                if self.db.add_organization(dialog.result['org_name']):
-                    messagebox.showinfo("Success", "Organization added successfully!")
-                    # Refresh organization lists
-                    self.load_organizations()
-                    self.load_organizations_financial()
-                    self.load_report_filters()
-                else:
-                    messagebox.showerror("Error", "Failed to add organization!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to add organization: {str(e)}")
-    
-    def add_student(self):
-        """Add a new student"""
-        fields = [
-            {'name': 'first_name', 'label': 'First Name:', 'type': 'entry'},
-            {'name': 'last_name', 'label': 'Last Name:', 'type': 'entry'},
-            {'name': 'gender', 'label': 'Gender:', 'type': 'combobox', 'values': ['Male', 'Female', 'Other']},
-            {'name': 'degree_program', 'label': 'Degree Program:', 'type': 'entry'},
-            {'name': 'standing', 'label': 'Standing:', 'type': 'combobox', 'values': ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']}
-        ]
-        
-        dialog = FormDialog(self, "Add Student", fields)
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            try:
-                student = Student(
-                    student_id=None,
-                    first_name=dialog.result['first_name'],
-                    last_name=dialog.result['last_name'],
-                    gender=dialog.result['gender'],
-                    degree_program=dialog.result['degree_program'],
-                    standing=dialog.result['standing']
-                )
-                
-                if self.db.add_student(student):
-                    messagebox.showinfo("Success", "Student added successfully!")
-                    self.refresh_students()
-                else:
-                    messagebox.showerror("Error", "Failed to add student!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to add student: {str(e)}")
-    
-    def edit_student(self):
-        """Edit selected student"""
-        selected = self.students_table.get_selected_item()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select a student to edit")
-            return
-        
-        fields = [
-            {'name': 'first_name', 'label': 'First Name:', 'type': 'entry', 'default': selected['First Name']},
-            {'name': 'last_name', 'label': 'Last Name:', 'type': 'entry', 'default': selected['Last Name']},
-            {'name': 'gender', 'label': 'Gender:', 'type': 'combobox', 'values': ['Male', 'Female', 'Other'], 'default': selected['Gender']},
-            {'name': 'degree_program', 'label': 'Degree Program:', 'type': 'entry', 'default': selected['Degree Program']},
-            {'name': 'standing', 'label': 'Standing:', 'type': 'combobox', 'values': ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'], 'default': selected['Standing']}
-        ]
-        
-        dialog = FormDialog(self, "Edit Student", fields)
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            try:
-                student = Student(
-                    student_id=int(selected['Student ID']),
-                    first_name=dialog.result['first_name'],
-                    last_name=dialog.result['last_name'],
-                    gender=dialog.result['gender'],
-                    degree_program=dialog.result['degree_program'],
-                    standing=dialog.result['standing']
-                )
-                
-                if self.db.update_student(student):
-                    messagebox.showinfo("Success", "Student updated successfully!")
-                    self.refresh_students()
-                else:
-                    messagebox.showerror("Error", "Failed to update student!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to update student: {str(e)}")
-    
-    def delete_student(self):
-        """Delete selected student"""
-        selected = self.students_table.get_selected_item()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select a student to delete")
-            return
-        
-        if messagebox.askyesno("Confirm", f"Delete student {selected['First Name']} {selected['Last Name']}?"):
-            try:
-                if self.db.delete_student(int(selected['Student ID'])):
-                    messagebox.showinfo("Success", "Student deleted successfully!")
-                    self.refresh_students()
-                else:
-                    messagebox.showerror("Error", "Failed to delete student!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete student: {str(e)}")
-    
-    def refresh_students(self):
-        """Refresh the students table"""
-        students = self.db.get_all_students()
-        student_data = [
-            {
-                'Student ID': s.student_id,
-                'First Name': s.first_name,
-                'Last Name': s.last_name,
-                'Gender': s.gender,
-                'Degree Program': s.degree_program,
-                'Standing': s.standing
-            }
-            for s in students
-        ]
-        
-        # Store original data for filtering
-        self.original_student_data = student_data
-        
-        # Apply any existing search filter
-        search_text = self.student_search_var.get().lower()
-        if search_text:
-            student_data = [
-                row for row in student_data
-                if search_text in f"{row['First Name']} {row['Last Name']}".lower()
-            ]
-        
-        self.students_table.insert_data(student_data)
-    
-    def edit_organization(self):
-        """Edit selected organization"""
-        selected = self.organizations_table.get_selected_item()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select an organization to edit")
-            return
-        
-        fields = [
-            {'name': 'org_name', 'label': 'Organization Name:', 'type': 'entry', 'default': selected['Organization Name']}
-        ]
-        
-        dialog = FormDialog(self, "Edit Organization", fields)
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            try:
-                org = Organization(
-                    org_id=int(selected['Organization ID']),
-                    org_name=dialog.result['org_name']
-                )
-                
-                if self.db.update_organization(org):
-                    messagebox.showinfo("Success", "Organization updated successfully!")
-                    self.refresh_organizations()
-                else:
-                    messagebox.showerror("Error", "Failed to update organization!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to update organization: {str(e)}")
-    
-    def delete_organization(self):
-        """Delete selected organization"""
-        selected = self.organizations_table.get_selected_item()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select an organization to delete")
-            return
-        
-        if messagebox.askyesno("Confirm", f"Delete organization {selected['Organization Name']}?"):
-            try:
-                if self.db.delete_organization(int(selected['Organization ID'])):
-                    messagebox.showinfo("Success", "Organization deleted successfully!")
-                    self.refresh_organizations()
-                else:
-                    messagebox.showerror("Error", "Failed to delete organization!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete organization: {str(e)}")
-    
-    def refresh_organizations(self):
-        """Refresh the organizations table"""
-        orgs = self.db.get_all_organizations()
-        org_data = [
-            {
-                'Organization ID': org.org_id,
-                'Organization Name': org.org_name
-            }
-            for org in orgs
-        ]
-        
-        # Store original data for filtering
-        self.original_org_data = org_data
-        
-        # Apply any existing search filter
-        search_text = self.org_search_var.get().lower()
-        if search_text:
-            org_data = [
-                row for row in org_data
-                if search_text in row['Organization Name'].lower()
-            ]
-        
-        self.organizations_table.insert_data(org_data)
     
     def __del__(self):
         if hasattr(self, 'db'):
