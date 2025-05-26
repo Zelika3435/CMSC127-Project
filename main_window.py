@@ -474,13 +474,10 @@ class MainWindow(tk.Frame):
         self.report_semester_combo = ttk.Combobox(semester_frame, values=["1st", "2nd", "Summer"], state="readonly")
         self.report_semester_combo.pack(side=tk.LEFT, padx=5)
         
-        # Report buttons
-        ttk.Button(left_panel, text="Membership Status", command=self.show_membership_status).pack(fill=tk.X, pady=2)
-        ttk.Button(left_panel, text="Executive Committee", command=self.show_executive_committee).pack(fill=tk.X, pady=2)
-        ttk.Button(left_panel, text="Role History", command=self.show_role_history).pack(fill=tk.X, pady=2)
-        ttk.Button(left_panel, text="Alumni List", command=self.show_alumni).pack(fill=tk.X, pady=2)
+        # Report buttons - keeping only the necessary ones
         ttk.Button(left_panel, text="Unpaid Fees by Organization", command=self.show_unpaid_fees).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Unpaid Fees by Student", command=self.show_student_unpaid).pack(fill=tk.X, pady=2)
+        ttk.Button(left_panel, text="Executive Committee", command=self.show_executive_committee).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Member Roles by AY", command=self.show_member_in_role).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Financial Summary", command=self.show_financial_summary).pack(fill=tk.X, pady=2)
         ttk.Button(left_panel, text="Late Payments", command=self.show_late_payments_report).pack(fill=tk.X, pady=2)
@@ -1379,75 +1376,159 @@ class MainWindow(tk.Frame):
 
     def show_unpaid_fees(self):
         org_name = self.report_org_combo.get()
-        semester = self.report_semester_combo.get()
-        acad_year = self.report_year_combo.get()
         if not org_name:
             messagebox.showwarning("Warning", "Please select an organization")
+            return
+        
+        fields = [
+            {'name': 'as_of_date', 'label': 'As of Date', 'type': 'entry', 
+             'default': datetime.now().strftime('%Y-%m-%d')}
+        ]
+        
+        dialog = FormDialog(self, "Select Date", fields)
+        self.wait_window(dialog)
+        
+        if dialog.result:
+            try:
+                as_of_date = datetime.strptime(dialog.result['as_of_date'], '%Y-%m-%d').date()
+                orgs = self.db.get_all_organizations()
+                org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+                
+                # Query to get total fees, paid amount, and unpaid amount as of the given date
+                query = """
+                SELECT 
+                    t.semester,
+                    t.acad_year,
+                    SUM(t.fee_amount) as total_fees,
+                    COALESCE(SUM(p.amount), 0) as total_paid,
+                    SUM(t.fee_amount) - COALESCE(SUM(p.amount), 0) as total_unpaid
+                FROM term t
+                JOIN membership m ON t.membership_id = m.membership_id
+                LEFT JOIN payment p ON t.term_id = p.term_id AND p.payment_date <= ?
+                WHERE m.org_id = ? AND t.term_start <= ?
+                GROUP BY t.semester, t.acad_year
+                ORDER BY t.acad_year DESC, 
+                    CASE t.semester
+                        WHEN '1st' THEN 1
+                        WHEN '2nd' THEN 2
+                        WHEN 'Summer' THEN 3
+                        ELSE 4
+                    END
+                """
+                
+                results = self.db.execute_query(query, (as_of_date, org_id, as_of_date))
+                
+                if not results:
+                    messagebox.showinfo("Info", f"No financial data found for {org_name} as of {as_of_date}")
+                    return
+                
+                # Update table columns for financial summary
+                columns = ['Semester', 'Academic Year', 'Total Fees', 'Total Paid', 'Total Unpaid']
+                self.report_table.tree['columns'] = columns
+                for col in columns:
+                    self.report_table.tree.heading(col, text=col)
+                    self.report_table.tree.column(col, width=100)
+                
+                # Format the data
+                formatted_data = []
+                total_fees_sum = 0
+                total_paid_sum = 0
+                total_unpaid_sum = 0
+                
+                for row in results:
+                    semester, acad_year, total_fees, total_paid, total_unpaid = row
+                    formatted_data.append({
+                        'Semester': semester,
+                        'Academic Year': acad_year,
+                        'Total Fees': f"₱{total_fees:.2f}",
+                        'Total Paid': f"₱{total_paid:.2f}",
+                        'Total Unpaid': f"₱{total_unpaid:.2f}"
+                    })
+                    total_fees_sum += total_fees
+                    total_paid_sum += total_paid
+                    total_unpaid_sum += total_unpaid
+                
+                # Add a summary row
+                formatted_data.append({
+                    'Semester': 'TOTAL',
+                    'Academic Year': '',
+                    'Total Fees': f"₱{total_fees_sum:.2f}",
+                    'Total Paid': f"₱{total_paid_sum:.2f}",
+                    'Total Unpaid': f"₱{total_unpaid_sum:.2f}"
+                })
+                
+                self.report_table.insert_data(formatted_data)
+                
+            except ValueError:
+                messagebox.showerror("Error", "Invalid date format. Please use YYYY-MM-DD")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to generate report: {str(e)}")
+
+    def show_student_unpaid(self):
+        org_name = self.report_org_combo.get()
+        semester = self.report_semester_combo.get()
+        acad_year = self.report_year_combo.get()
+        
+        if not all([org_name, semester, acad_year]):
+            messagebox.showwarning("Warning", "Please select organization, semester, and academic year")
             return
         
         orgs = self.db.get_all_organizations()
         org_id = next(org.org_id for org in orgs if org.org_name == org_name)
         
-        unpaid = self.db.get_unpaid_fees(org_id, semester, acad_year) 
+        # Get members with highest debt for the selected semester and academic year
+        query = """
+        SELECT 
+            s.student_id,
+            s.first_name,
+            s.last_name,
+            t.fee_amount,
+            COALESCE(SUM(p.amount), 0) as total_paid,
+            (t.fee_amount - COALESCE(SUM(p.amount), 0)) as balance,
+            t.semester,
+            t.acad_year,
+            t.payment_status
+        FROM student s
+        JOIN membership m ON s.student_id = m.student_id
+        JOIN organization org ON m.org_id = org.org_id
+        JOIN term t ON m.membership_id = t.membership_id
+        LEFT JOIN payment p ON t.term_id = p.term_id
+        WHERE org.org_id = ? AND t.semester = ? AND t.acad_year = ?
+        GROUP BY s.student_id, t.term_id
+        HAVING balance > 0
+        ORDER BY balance DESC
+        """
         
-        # Update table columns for membership status
-        columns = ['membership_id', 'first_name', 'last_name', 'total_balance']
+        results = self.db.execute_query(query, (org_id, semester, acad_year))
+        
+        if not results:
+            messagebox.showinfo("Info", f"No unpaid fees found for {org_name} in {semester} {acad_year}")
+            return
+        
+        # Update table columns for unpaid fees
+        columns = ['Student ID', 'Name', 'Fee Amount', 'Amount Paid', 'Balance', 'Payment Status']
         self.report_table.tree['columns'] = columns
         for col in columns:
-            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+            self.report_table.tree.heading(col, text=col)
             self.report_table.tree.column(col, width=100)
         
         # Format the data
         formatted_data = []
-        for fee in unpaid:
+        for row in results:
             formatted_data.append({
-                'membership_id': fee['membership_id'],
-                'first_name': fee['first_name'],
-                'last_name': fee['last_name'],
-                'total_balance': f"₱{fee['total_balance']:.2f}"
+                'Student ID': row[0],
+                'Name': f"{row[1]} {row[2]}",
+                'Fee Amount': f"₱{row[3]:.2f}",
+                'Amount Paid': f"₱{row[4]:.2f}",
+                'Balance': f"₱{row[5]:.2f}",
+                'Payment Status': row[8]
             })
+        
         self.report_table.insert_data(formatted_data)
-
-    def show_student_unpaid(self):
-        students = self.db.get_all_students()
         
-        student_options = [f"{s.student_id} ({s.first_name} {s.last_name})" for s in students]
-
-        fields = [
-            {'name': 'student', 'label': 'Select Student', 'type': 'combobox', 'values': student_options},
-        ]
-        
-        dialog = FormDialog(self, "Select Student", fields)
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            selected_student = dialog.result['student']
-            student_id = int(selected_student.split(' ')[0])
-        
-            unpaid = self.db.get_student_unpaid(student_id) 
-        
-        # Update table columns for membership status
-        columns = ['first_name', 'last_name', 'org_id', 'org_name', 'term_id', 'semester', 'acad_year', 'amount']
-        self.report_table.tree['columns'] = columns
-        for col in columns:
-            self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
-            self.report_table.tree.column(col, width=100)
-        
-        # Format the data
-        formatted_data = []
-        for fee in unpaid:
-            formatted_data.append({
-                'first_name': fee['first_name'],
-                'last_name': fee['last_name'],
-                'org_id': fee['org_id'],
-                'org_name': fee['org_name'],
-                'term_id': fee['term_id'],
-                'semester': fee['semester'],
-                'acad_year': fee['acad_year'],
-                'payment_status': fee['payment_status'],
-                'amount': fee['amount']
-            })
-        self.report_table.insert_data(formatted_data)
+        # Update status bar with summary
+        total_debt = sum(float(row[5]) for row in results)
+        self.status_bar.config(text=f"Showing {len(results)} members with total unpaid amount of ₱{total_debt:.2f}")
 
     def show_member_in_role(self):
         org_name = self.report_org_combo.get()
@@ -1496,7 +1577,6 @@ class MainWindow(tk.Frame):
             })
         self.report_table.insert_data(formatted_data)
 
-
     def show_financial_summary(self):
         org_name = self.report_org_combo.get()
         if not org_name:
@@ -1512,25 +1592,31 @@ class MainWindow(tk.Frame):
         self.wait_window(dialog)
         
         if dialog.result:
-            orgs = self.db.get_all_organizations()
-            org_id = next(org.org_id for org in orgs if org.org_name == org_name)
-            
-            summary = self.db.get_organization_financial_status(org_id, dialog.result['as_of_date'])
-            
-            # Update table columns for financial summary
-            columns = ['total_fees', 'total_paid', 'total_unpaid']
-            self.report_table.tree['columns'] = columns
-            for col in columns:
-                self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
-                self.report_table.tree.column(col, width=100)
-            
-            # Format the data
-            formatted_data = [{
-                'total_fees': f"₱{summary['total_fees']:.2f}",
-                'total_paid': f"₱{summary['total_paid']:.2f}",
-                'total_unpaid': f"₱{summary['total_unpaid']:.2f}"
-            }]
-            self.report_table.insert_data(formatted_data)
+            try:
+                as_of_date = datetime.strptime(dialog.result['as_of_date'], '%Y-%m-%d').date()
+                orgs = self.db.get_all_organizations()
+                org_id = next(org.org_id for org in orgs if org.org_name == org_name)
+                
+                summary = self.db.get_organization_financial_status(org_id, dialog.result['as_of_date'])
+                
+                # Update table columns for financial summary
+                columns = ['total_fees', 'total_paid', 'total_unpaid']
+                self.report_table.tree['columns'] = columns
+                for col in columns:
+                    self.report_table.tree.heading(col, text=col.replace('_', ' ').title())
+                    self.report_table.tree.column(col, width=100)
+                
+                # Format the data
+                formatted_data = [{
+                    'total_fees': f"₱{summary['total_fees']:.2f}",
+                    'total_paid': f"₱{summary['total_paid']:.2f}",
+                    'total_unpaid': f"₱{summary['total_unpaid']:.2f}"
+                }]
+                self.report_table.insert_data(formatted_data)
+            except ValueError:
+                messagebox.showerror("Error", "Invalid date format. Please use YYYY-MM-DD")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to generate report: {str(e)}")
     
     def show_late_payments_report(self):
         org_name = self.report_org_combo.get()
