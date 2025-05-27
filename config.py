@@ -2,18 +2,14 @@ import mariadb
 from typing import Optional
 
 class DatabaseConfig:
-    # Database configuration and connection management
-    
-    # Database connection parameters
     DB_HOST = "localhost"
     DB_PORT = 3306
-    DB_USER = "root"
-    DB_PASSWORD = "achillesjohn24"  # ← Change this to the password of your root user
+    DB_USER = ""              # Empty by default, user must input
+    DB_PASSWORD = ""          # Empty by default
     DB_NAME = "student_membership_db"
-    
+
     @classmethod
     def get_connection(cls) -> Optional[mariadb.Connection]:
-        # Create and return a database connection
         try:
             connection = mariadb.connect(
                 user=cls.DB_USER,

@@ -8,7 +8,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from main_window import MainWindow
-    from database import DatabaseManager
     from setup_database import create_database_schema
 except ImportError as e:
     print(f"Import error: {e}")
@@ -29,18 +28,12 @@ def setup_database():
         return False
 
 def main():
-    """Main application entry point"""
-    
-    # Set up database first
-    if not setup_database():
-        sys.exit(1)
-    
     # Create root window
     root = tk.Tk()
-    
+
     # Create and run the application
     try:
-        app = MainWindow(root)
+        app = MainWindow(root)  
         root.mainloop()
     except Exception as e:
         messagebox.showerror("Application Error", f"An error occurred: {e}")
