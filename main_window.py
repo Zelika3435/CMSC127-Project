@@ -11,35 +11,103 @@ class MainWindow(tk.Frame):
         super().__init__(root)
         self.root = root
         self.root.title("Organization Management System")
-        self.root.geometry("1200x800")
+        self.root.geometry("400x250")  
         
-        # Initialize database
-        self.db = DatabaseManager()
-        if not self.db.connect():
-            messagebox.showerror("Error", "Could not connect to database")
-            self.root.destroy()
-            return
+        self.db = None  # DBManager will be created only after config
         
-        # Create status bar first
-        self.status_bar = ttk.Label(self, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+        # Status bar
+        self.status_bar = ttk.Label(self, text="Please enter DB credentials", relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
-        # Create main notebook (tabs)
+        # Notebook with tabs
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create tabs
+        # Create Config tab first
+        self.create_config_tab()
+        
+        # Pack frame
+        self.pack(fill=tk.BOTH, expand=True)
+        
+        # Disable switching to other tabs until connected
+        # Other tabs will be added after successful connection
+
+    def create_config_tab(self):
+        self.config_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.config_frame, text="Database Configuration")
+
+        # User
+        ttk.Label(self.config_frame, text="DB User:").grid(row=0, column=0, sticky=tk.W, pady=5, padx=5)
+        self.user_entry = ttk.Entry(self.config_frame)
+        self.user_entry.grid(row=0, column=1, pady=5, padx=5)
+        self.user_entry.insert(0, "root")  # default user
+
+        # Password
+        ttk.Label(self.config_frame, text="DB Password:").grid(row=1, column=0, sticky=tk.W, pady=5, padx=5)
+        self.password_entry = ttk.Entry(self.config_frame, show="*")
+        self.password_entry.grid(row=1, column=1, pady=5, padx=5)
+
+        # Host
+        ttk.Label(self.config_frame, text="DB Host:").grid(row=2, column=0, sticky=tk.W, pady=5, padx=5)
+        self.host_entry = ttk.Entry(self.config_frame)
+        self.host_entry.grid(row=2, column=1, pady=5, padx=5)
+        self.host_entry.insert(0, "localhost")  # default host
+
+        # Port
+        ttk.Label(self.config_frame, text="DB Port:").grid(row=3, column=0, sticky=tk.W, pady=5, padx=5)
+        self.port_entry = ttk.Entry(self.config_frame)
+        self.port_entry.grid(row=3, column=1, pady=5, padx=5)
+        self.port_entry.insert(0, "3306")  # default port
+
+        # Apply button
+        apply_btn = ttk.Button(self.config_frame, text="Apply", command=self.apply_db_config)
+        apply_btn.grid(row=4, column=0, columnspan=2, pady=10)
+
+    def apply_db_config(self):
+        user = self.user_entry.get().strip()
+        password = self.password_entry.get()
+        host = self.host_entry.get().strip()
+        port_str = self.port_entry.get().strip()
+        
+        if not user:
+            messagebox.showerror("Input Error", "User cannot be empty.")
+            return
+        
+        try:
+            port = int(port_str)
+        except ValueError:
+            messagebox.showerror("Input Error", "Port must be a number.")
+            return
+
+        from config import DatabaseConfig
+        DatabaseConfig.DB_USER = user
+        DatabaseConfig.DB_PASSWORD = password
+        DatabaseConfig.DB_HOST = host
+        DatabaseConfig.DB_PORT = port
+        
+        from database import DatabaseManager
+        self.db = DatabaseManager()
+        if not self.db.connect():
+            messagebox.showerror("Connection Error", "Failed to connect to database with provided credentials.")
+            self.status_bar.config(text="Connection failed. Please try again.")
+            self.db = None
+            return
+        
+        self.status_bar.config(text="Connected to database successfully!")
+        self.root.geometry("1200x800")
+        
+        # Remove config tab and create other tabs 
+        self.notebook.forget(self.config_frame)
+        self.create_other_tabs()
+    
+    def create_other_tabs(self):
         self.create_student_management_tab()
         self.create_organization_tab()
         self.create_membership_tab()
         self.create_financial_tab()
         self.create_reports_tab()
-        
-        # Menu bar
         self.create_menu()
-        
-        # Pack the main frame
-        self.pack(fill=tk.BOTH, expand=True)
+
     
     def create_menu(self):
         menubar = tk.Menu(self)
